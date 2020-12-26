@@ -33,6 +33,15 @@ struct Job {
     std::vector<uint16_t> opTopo;
 };
 
+struct Event {
+	uint32_t time{};
+	uint16_t job{}, op{};
+	bool is_start{};
+	bool operator<(const Event &rhs) const {
+		return time != rhs.time ? time < rhs.time : is_start < rhs.is_start;
+	}
+};
+
 std::pair<uint16_t, std::vector<Job>> ReadJobs(const std::string &file) {
     uint16_t l{}; // Number of available slices
     uint16_t n{}; // Number of jobs
@@ -139,7 +148,6 @@ void Scheduling(std::vector<Job> &jobs, const uint16_t &l) {
     });
     for (auto &j : j_order) {
         uint32_t j_end{global_start};
-        uint8_t slice_used{0};
         // Sort the operations in (Reversed) Topological Ordering
         for (uint16_t i = 0; i < jobs[j].ops.size(); i++)
             OpTopoSort(jobs[j], i);
@@ -151,20 +159,14 @@ void Scheduling(std::vector<Job> &jobs, const uint16_t &l) {
             for (auto &d : jobs[j].ops[o].deps) {
                 j_start = std::max<uint32_t>(j_start, jobs[j].ops[d].start_time + jobs[j].ops[d].duration);
             }
-            if ((slice_used + jobs[j].ops[o].slices <= l)) {
-                jobs[j].ops[o].start_time = j_start;
-                slice_used += jobs[j].ops[o].slices;
-            } else {
-                jobs[j].ops[o].start_time = j_end;
-                slice_used = jobs[j].ops[o].slices;
-            }
-            std::cerr << o << " " << jobs[j].ops[o].start_time << " " << j_start << " " << j_end << " " << slice_used << "\n";
-            for (uint8_t s = slice_used - jobs[j].ops[o].slices; s < slice_used; s++)
+            jobs[j].ops[o].start_time = j_end;
+            std::cerr << o << " " << jobs[j].ops[o].start_time << " " << j_start << " " << j_end << " " << jobs[j].ops[o].slices << "\n";
+            for (uint8_t s = 0; s < jobs[j].ops[o].slices; s++)
                 jobs[j].ops[o].in_slice.push_back(s);
             j_end = std::max<uint32_t>(j_end, jobs[j].ops[o].start_time + jobs[j].ops[o].duration);
             jobs[j].ops[o].done = true;
         }
-        std::cerr << "\n";
+        // std::cerr << "\n";
         global_start = j_end;
     }
 }

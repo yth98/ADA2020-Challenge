@@ -131,31 +131,38 @@ void OpTopoSort(Job &job, uint16_t &o) {
 
 void Scheduling(std::vector<Job> &jobs, const uint16_t &l) {
     uint32_t global_start{0};
-    for (auto &j : jobs) {
-        uint32_t slice_used{0}, j_end{global_start};
+    std::vector<uint16_t> j_order(jobs.size());
+    // Sort the jobs by weight in descending order
+    for (uint8_t i = 0; i < jobs.size(); i++) j_order[i] = i;
+    std::sort(j_order.begin(), j_order.end(), [&](const uint16_t &a, const uint16_t &b) {
+        return jobs[a].weight > jobs[b].weight;
+    });
+    for (auto &j : j_order) {
+        uint32_t j_end{global_start};
+        uint8_t slice_used{0};
         // Sort the operations in (Reversed) Topological Ordering
-        for (uint16_t i = 0; i < j.ops.size(); i++)
-            OpTopoSort(j, i);
-        assert(j.ops.size() == j.opTopo.size());
+        for (uint16_t i = 0; i < jobs[j].ops.size(); i++)
+            OpTopoSort(jobs[j], i);
+        assert(jobs[j].ops.size() == jobs[j].opTopo.size());
         // Schedule each operation in the job
-        for (auto &o : j.opTopo) {
+        for (auto &o : jobs[j].opTopo) {
             uint32_t j_start{j_end};
-            assert(!j.ops[o].done);
-            for (auto &d : j.ops[o].deps) {
-                j_start = std::max<uint32_t>(j_start, j.ops[d].start_time + j.ops[d].duration);
+            assert(!jobs[j].ops[o].done);
+            for (auto &d : jobs[j].ops[o].deps) {
+                j_start = std::max<uint32_t>(j_start, jobs[j].ops[d].start_time + jobs[j].ops[d].duration);
             }
-            if ((slice_used + j.ops[o].slices <= l)) {
-                j.ops[o].start_time = j_start;
-                slice_used += j.ops[o].slices;
+            if ((slice_used + jobs[j].ops[o].slices <= l)) {
+                jobs[j].ops[o].start_time = j_start;
+                slice_used += jobs[j].ops[o].slices;
             } else {
-                j.ops[o].start_time = j_end;
-                slice_used = j.ops[o].slices;
+                jobs[j].ops[o].start_time = j_end;
+                slice_used = jobs[j].ops[o].slices;
             }
-            std::cerr << o << " " << j.ops[o].start_time << " " << j_start << " " << j_end << " " << slice_used << "\n";
-            for (uint32_t s = slice_used - j.ops[o].slices; s < slice_used; s++)
-                j.ops[o].in_slice.push_back(s);
-            j_end = std::max<uint32_t>(j_end, j.ops[o].start_time + j.ops[o].duration);
-            j.ops[o].done = true;
+            std::cerr << o << " " << jobs[j].ops[o].start_time << " " << j_start << " " << j_end << " " << slice_used << "\n";
+            for (uint8_t s = slice_used - jobs[j].ops[o].slices; s < slice_used; s++)
+                jobs[j].ops[o].in_slice.push_back(s);
+            j_end = std::max<uint32_t>(j_end, jobs[j].ops[o].start_time + jobs[j].ops[o].duration);
+            jobs[j].ops[o].done = true;
         }
         std::cerr << "\n";
         global_start = j_end;

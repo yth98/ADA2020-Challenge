@@ -13,10 +13,11 @@ scheduler: scheduler.cpp
 	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $<
 
 out/%.out: scheduler in/%.in
+	mkdir -p out
 	./scheduler in/$(patsubst out/%.out,%.in,$@) $@
 
 validate%: checker in/%.in out/%.out
 	./checker --public in/$(patsubst validate%,%.in,$@) out/$(patsubst validate%,%.out,$@)
 
 clean:
-	rm -f checker scheduler out/*.out
+	rm -rf checker scheduler out

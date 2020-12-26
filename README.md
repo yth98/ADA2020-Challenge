@@ -7,6 +7,7 @@
         * [GLPK](https://www.gnu.org/software/glpk/ "GNU Linear Programming Kit")
         * [lp_solve](http://lpsolve.sourceforge.net/5.5/ "MILP solver")
         * [Comparison of Open-Source Linear Programming Solvers](https://prod-ng.sandia.gov/techlib-noauth/access-control.cgi/2013/138847.pdf)
+        * [Mixed Integer Programming Models for Job Shop Scheduling: A Computational Analysis](https://tidel.mie.utoronto.ca/pubs/JSP_CandOR_2016.pdf)
     * Illustrate the objective function
         * The metric to be minimized
     * Illustrate the constraints

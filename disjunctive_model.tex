@@ -1,0 +1,54 @@
+\documentclass[12pt,a4paper]{article}
+\usepackage[hmargin=0.8in,vmargin={0.5in,1in}]{geometry}
+\usepackage{amsmath}
+
+\title{ADA Final Challenge 2020}
+\author{Team31}
+\date{}
+
+\begin{document}
+
+\maketitle
+
+\begin{itemize}
+    \item $l$ slices
+    \item $n$ jobs
+    \item The $i$-th job
+    \begin{itemize}
+        \item possesses $m_i$ operations
+        \item has the weight of $w_i$
+    \end{itemize}
+    \item The $j$-th operation of the $i$-th job
+    \begin{itemize}
+        \item requires $s_{i,j}$ slices
+        \item requires the duration of $d_{i,j}$
+        \item depends on the operation $a_{i,j,k}$ for $k=1,...,p_{i,j}$
+    \end{itemize}
+\end{itemize}
+\hbox{}
+\begin{itemize}
+    \item $x_{i,j}$ is the integer start time of $j$-th operation of $i$-th job
+    \item $y_{i,j,q}$ is equal to 1 if operation ($i,j$) is assigned to $q$-th slice
+    \item $z_{i_1,j_1,i_2,j_2,q}$ is equal to 1 if operation ($i_1,j_1$) precedes operation ($i_2,j_2$) on $q$-th slice
+    \item $V=\sum_{i}\sum_{j}d_{i,j}$
+    \item $D_{i_1,j_1,i_2,j_2,q}=2-y_{i_1,j_1,q}-y_{i_2,j_2,q}+z_{i_1,j_1,i_2,j_2,q}$
+    \item $\overline{D}_{i_1,j_1,i_2,j_2,q}=3-y_{i_1,j_1,q}-y_{i_2,j_2,q}-z_{i_1,j_1,i_2,j_2,q}$
+\end{itemize}
+
+$$
+\begin{aligned}
+\textrm{min}\quad& C_{max}+\sum_{i}w_i C_i &&(1)\\
+\textrm{s.t.}\quad& x_{i,j}\geq0, & \forall(1\leq i\leq n)\forall(1\leq j\leq m_i)\quad&(2)\\
+& x_{i,j}\geq x_{i,a_{i,j,k}}+d_{i,a_{i,j,k}}, & \forall(1\leq i\leq n)\forall(1\leq j\leq m_i)\forall(1\leq k\leq p_{i,j})\quad&(3)\\
+& x_{i_1,j_1}\geq x_{i_2,j_2}+d_{i_2,j_2}-V\cdot D_{i_1,j_1,i_2,j_2,q}, & \forall(i_1,j_1)\forall(i_2,j_2)\forall(1\leq q\leq l)\quad&(4)\\
+& x_{i_2,j_2}\geq x_{i_1,j_1}+d_{i_1,j_1}-V\cdot\overline{D}_{i_1,j_1,i_2,j_2,q}, & \forall(i_1,j_1)\forall(i_2,j_2)\forall(1\leq q\leq l)\quad&(5)\\
+& \sum_{q}y_{i,j,q}\geq s_{i,j}, & \forall(1\leq i\leq n)\forall(1\leq j\leq m_i)\quad&(6)\\
+& C_i\geq x_{i,j}+d_{i,j}, & \forall(1\leq i\leq n)\forall(1\leq j\leq m_i)\quad&(7)\\
+& C_{max}\geq C_i, & \forall(1\leq i\leq n)\quad&(8)\\
+& y_{i,j,q}\in\{0,1\}, & \forall(1\leq i\leq n)\forall(1\leq j\leq m_i)\forall(1\leq q\leq l)\quad&(9)\\
+& z_{i_1,j_1,i_2,j_2,q}\in\{0,1\}, & \forall(i_1,j_1)\forall(i_2,j_2)\forall(1\leq q\leq l)\quad&(10)\\
+& & \\
+\end{aligned}
+$$
+
+\end{document}

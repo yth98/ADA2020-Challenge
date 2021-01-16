@@ -140,6 +140,7 @@ SCIP_RETCODE FormulateMIP(SCIP* scip, std::vector<SCIP_VAR*> &x, std::vector<SCI
     char name[SCIP_MAXSTRLEN];
     std::ofstream lpf(lpfile);
     std::vector<Operation*> Ops;
+    std::vector<SCIP_VAR*> c, z;
 
     // Write out lpfile
     dGCD = jobs[0].ops[0].duration;
@@ -231,10 +232,10 @@ SCIP_RETCODE FormulateMIP(SCIP* scip, std::vector<SCIP_VAR*> &x, std::vector<SCI
             Ops.push_back(&jobs[i].ops[j]);
         }
     // Variables
-    SCIP_VAR* c[jobs.size()];
-    SCIP_VAR* z[Ops.size()*Ops.size()*l];
+    c.resize(jobs.size());
     x.resize(Ops.size());
     y.resize(Ops.size()*l);
+    z.resize(Ops.size()*Ops.size()*l);
     std::vector<SCIP_CONS*> Precedence, DisjunctiveP, DisjunctiveN, Slice, LastC, LastMax;
     SCIP_CALL( SCIPcreateProbBasic(scip, "JSP") );
     SCIP_CALL( SCIPcreateVarBasic(scip, &Cmax, "cmax", 0.0, SCIPinfinity(scip), 1.0, SCIP_VARTYPE_INTEGER) );
@@ -341,13 +342,13 @@ SCIP_RETCODE RunJSP(const std::string &outfile, std::vector<Job> &jobs, const ui
     SCIP_CALL( SCIPincludeDefaultPlugins(scip) );
 
     SCIP_CALL( FormulateMIP(scip, x, y, outfile+".lp", jobs, l, dGCD) );
-    SCIP_CALL( SCIPprintOrigProblem(scip, NULL, "cip", FALSE) );
+    // SCIP_CALL( SCIPprintOrigProblem(scip, NULL, "cip", FALSE) );
 
     SCIPinfoMessage(scip, NULL, "\nPresolving...\n");
     SCIP_CALL( SCIPpresolve(scip) );
 
     SCIPinfoMessage(scip, NULL, "\nSolving...\n");
-    SCIP_CALL( SCIPsolve(scip) );
+    SCIP_CALL( SCIPsolveConcurrent(scip) );
 
     if( (NSols = SCIPgetNSols(scip)) > 0 ) {
         SCIPinfoMessage(scip, NULL, "\nSolution:\n");

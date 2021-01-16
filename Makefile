@@ -8,9 +8,9 @@ all: checker scheduler $(CASES:%=out/%.out) validate
 validate: $(CASES:%=validate%)
 
 checker: checker.cpp
-	$(CXX) $(CXXFLAGS) $< -o $@ $(LDFLAGS)
+	$(CXX) $(CXXFLAGS) $< -o $@
 
-scheduler: scheduler.cpp
+scheduler: scheduler.cpp libs/lib/libscip.so
 	$(CXX) $(CXXFLAGS) $< -o $@ $(LDFLAGS)
 
 out/%.out: scheduler libs/lib/libscip.so in/%.in

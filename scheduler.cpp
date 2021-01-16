@@ -25,7 +25,7 @@ namespace {
 struct Operation {
     uint32_t duration{}, start_time{};
     uint16_t slices{}, ij{};
-    bool done{false}, inTopo{false};
+    bool done{false}, inTopo{false}, pre{false};
     std::vector<uint16_t> deps;
     std::basic_string<uint8_t> in_slice;
 };
@@ -263,6 +263,7 @@ SCIP_RETCODE FormulateMIP(SCIP* scip, std::vector<SCIP_VAR*> &x, std::vector<SCI
     // Constraints
     for(i = 0; i < jobs.size(); i++) for (j = 0; j < jobs[i].ops.size(); j++) for(auto &d : jobs[i].ops[j].deps) {
         SCIP_CONS* Pre;
+        jobs[i].ops[d].pre = true;
         (void) SCIPsnprintf(name, SCIP_MAXSTRLEN, "(3)%d-%d", jobs[i].ops[j].ij+1, jobs[i].ops[d].ij+1);
         SCIP_CALL( SCIPcreateConsBasicLinear(scip, &Pre, name, 0, NULL, NULL, jobs[i].ops[d].duration/dGCD, SCIPinfinity(scip)) );
         SCIP_CALL( SCIPaddCoefLinear(scip, Pre, x[jobs[i].ops[j].ij], 1.0) );
@@ -306,6 +307,7 @@ SCIP_RETCODE FormulateMIP(SCIP* scip, std::vector<SCIP_VAR*> &x, std::vector<SCI
     }
     for(i = 0; i < jobs.size(); i++) for (j = 0; j < jobs[i].ops.size(); j++) {
         SCIP_CONS *Last;
+        if(jobs[i].ops[j].pre) continue;
         (void) SCIPsnprintf(name, SCIP_MAXSTRLEN, "(7)%d", jobs[i].ops[j].ij+1);
         SCIP_CALL( SCIPcreateConsBasicLinear(scip, &Last, name, 0, NULL, NULL, Ops[jobs[i].ops[j].ij]->duration/dGCD, SCIPinfinity(scip)) );
         SCIP_CALL( SCIPaddCoefLinear(scip, Last, c[i], 1.0) );

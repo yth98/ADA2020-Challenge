@@ -1,7 +1,7 @@
 CXX ?= g++
 CXXFLAGS += -O3 -march=native -std=c++17 -Ilibs/include/
 LDFLAGS += -Llibs/lib/ -lscip
-CASES = 00 01 02 03 04 05 06 07 08 09 10
+CASES = 00 02 03 04 07 06 05 08 09 01 10
 
 all: checker scheduler $(CASES:%=out/%.out) validate
 

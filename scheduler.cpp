@@ -409,8 +409,8 @@ SCIP_RETCODE RunJSP(const std::string &outfile, std::vector<Job> &jobs, const ui
     SCIP_CALL( SCIPincludeDefaultPlugins(scip) );
 
     SCIP_CALL( FormulateMIP(scip, c, x, y, outfile+".lp", jobs, l, dGCD) );
-    SCIP_CALL( SCIPprintOrigProblem(scip, NULL, "cip", FALSE) );
-    std::cerr << "\nNumber of operations: " << x.size() << "\n";
+    // SCIP_CALL( SCIPprintOrigProblem(scip, NULL, "cip", FALSE) );
+    // std::cerr << "\nNumber of operations: " << x.size() << "\n";
     // There is a time limit of 12 hours for the public tests combined
     // The time limit for the private tests combined is 24 hours
     switch(x.size()) {
@@ -443,10 +443,10 @@ SCIP_RETCODE RunJSP(const std::string &outfile, std::vector<Job> &jobs, const ui
         }
         else for(auto &job : jobs) for(auto &op : job.ops) {
             op.start_time = SCIPgetSolVal(scip, Sol, x[op.ij]) * dGCD;
-            std::cerr<<SCIPvarGetName(x[op.ij])<<" "<<SCIPgetSolVal(scip, Sol, x[op.ij])<<" "<<op.start_time<<"\n";
+            // std::cerr<<SCIPvarGetName(x[op.ij])<<" "<<SCIPgetSolVal(scip, Sol, x[op.ij])<<" "<<op.start_time<<"\n";
             for(uint8_t q = 0; q < l; q++) {
                 if(SCIPisFeasEQ(scip, SCIPgetSolVal(scip, Sol, y[op.ij*l+q]), 1.0)) op.in_slice.push_back(q);
-                std::cerr<<SCIPvarGetName(y[op.ij*l+q])<<" "<<SCIPgetSolVal(scip, Sol, y[op.ij*l+q])<<"\n";
+                // std::cerr<<SCIPvarGetName(y[op.ij*l+q])<<" "<<SCIPgetSolVal(scip, Sol, y[op.ij*l+q])<<"\n";
             }
         }
     }

@@ -25,13 +25,14 @@ namespace {
 struct Operation {
     uint32_t duration{}, start_time{};
     uint16_t slices{}, ij{};
-    bool done{false}, inTopo{false}, pre{false};
+    bool done{false}, inTopo{false}, pre{false}, front{false}, back{false};
     std::vector<uint16_t> deps;
     std::basic_string<uint8_t> in_slice;
 };
 
 struct Job {
     double weight{};
+    uint32_t duration{0};
     std::vector<Operation> ops;
     std::vector<uint16_t> opTopo;
 };
@@ -44,6 +45,8 @@ struct Event {
 		return time != rhs.time ? time < rhs.time : is_start < rhs.is_start;
 	}
 };
+
+void OpTopoSort(Job&, uint16_t&);
 
 std::pair<uint16_t, std::vector<Job>> ReadJobs(const std::string &file) {
     uint16_t l{}; // Number of available slices
@@ -83,6 +86,7 @@ std::pair<uint16_t, std::vector<Job>> ReadJobs(const std::string &file) {
             getspace();
 
             testf >> op.duration;
+            job.duration += op.duration;
             getspace();
 
             size_t p{}; // Number of dependencies
@@ -96,6 +100,11 @@ std::pair<uint16_t, std::vector<Job>> ReadJobs(const std::string &file) {
             }
             getnewline();
         }
+        // Sort the operations in (Reversed) Topological Ordering
+        for (uint16_t j = 0; j < job.ops.size(); j++) OpTopoSort(job, j);
+        assert(job.ops.size() == job.opTopo.size());
+        job.ops[job.opTopo.front()].front = true;
+        job.ops[job.opTopo.back()].back = true;
     }
     return {l, jobs};
 }
@@ -131,7 +140,7 @@ long double CalculateScore(const std::string &outfile, std::vector<Job> &jobs) {
 }
 
 static
-SCIP_RETCODE FormulateMIP(SCIP* scip, std::vector<SCIP_VAR*> &x, std::vector<SCIP_VAR*> &y,
+SCIP_RETCODE FormulateMIP(SCIP* scip, std::vector<SCIP_VAR*> &c, std::vector<SCIP_VAR*> &x, std::vector<SCIP_VAR*> &y,
                           const std::string &lpfile, std::vector<Job> &jobs, const uint16_t &l, uint32_t &dGCD) {
     SCIP_VAR* Cmax;
     uint32_t V = 0; SCIP_Real VR;
@@ -140,78 +149,86 @@ SCIP_RETCODE FormulateMIP(SCIP* scip, std::vector<SCIP_VAR*> &x, std::vector<SCI
     char name[SCIP_MAXSTRLEN];
     std::ofstream lpf(lpfile);
     std::vector<Operation*> Ops;
-    std::vector<SCIP_VAR*> c, z;
+    std::vector<SCIP_VAR*> z;
     std::vector<bool> Deps;
 
     // Write out lpfile
     dGCD = jobs[0].ops[0].duration;
     for(i = 0; i < jobs.size(); i++)
-        for (j = 0; j < jobs[i].ops.size(); j++)
+        for(j = 0; j < jobs[i].ops.size(); j++)
             dGCD = std::__gcd(dGCD, jobs[i].ops[j].duration);
     for(i = 0; i < jobs.size(); i++)
-        for (j = 0; j < jobs[i].ops.size(); j++)
+        for(j = 0; j < jobs[i].ops.size(); j++)
             V += jobs[i].ops[j].duration / dGCD;
     lpf << "\\ The GCD of durations of all operations is " << dGCD << "\n";
     lpf << "\\ V = " << V << "\n";
     lpf << "MINIMIZE cmax";
     for(i = 0; i < jobs.size(); i++) lpf << " + " << jobs[i].weight << " c" << (i+1);
     lpf << "\nST\n";
-    for(i = 0; i < jobs.size(); i++)
-        for (j = 0; j < jobs[i].ops.size(); j++)
+    if(l >= 2) for(i = 0; i < jobs.size(); i++)
+        for(j = 0; j < jobs[i].ops.size(); j++)
             for(auto &d : jobs[i].ops[j].deps)
-                lpf << "x"<<(i+1)<<"_"<< (j+1) << " - x"<<(i+1)<<"_"<< (d+1) << " >= " << (jobs[i].ops[d].duration/dGCD) << "\n";
-    for(q = 0; q < l; q++)
+                lpf << "x"<<(i+1)<<"_"<<(j+1) << " - x"<<(i+1)<<"_"<<(d+1) << " >= " << (jobs[i].ops[d].duration/dGCD) << "\n";
+    if(l == 1)
         for(i1 = 0; i1 < jobs.size(); i1++)
-            for (j1 = 0; j1 < jobs[i1].ops.size(); j1++) {
-                for (j2 = j1+1; j2 < jobs[i1].ops.size(); j2++) {
+            for(i2 = i1+1; i2 < jobs.size(); i2++)
+                lpf << "c"<<(i1+1) << " - c"<<(i2+1)
+                    << " + " << V << " z"<<(i1+1)<<"_1_"<<(i2+1)<<"_1_1"
+                    << " >= " << (jobs[i1].duration/dGCD) << "\n"
+                    << "c"<<(i2+1) << " - c"<<(i1+1)
+                    << " - " << V << " z"<<(i1+1)<<"_1_"<<(i2+1)<<"_1_1"
+                    << " >= -" << (V-jobs[i2].duration/dGCD) << "\n";
+    else for(q = 0; q < l; q++)
+        for(i1 = 0; i1 < jobs.size(); i1++)
+            for(j1 = 0; j1 < jobs[i1].ops.size(); j1++) {
+                for(j2 = j1+1; j2 < jobs[i1].ops.size(); j2++) {
                     bool skip = false;
                     for(auto &d : jobs[i1].ops[j1].deps) if(d == j2) skip = true;
                     for(auto &d : jobs[i1].ops[j2].deps) if(d == j1) skip = true;
                     if(skip) continue;
-                    lpf << "x"<<(i1+1)<<"_"<< (j1+1) << " - x"<<(i1+1)<<"_"<< (j2+1);
-                    if(l >= 2)
-                    lpf << " - " << V << " y"<<(i1+1)<<"_"<< (j1+1)<<"_"<<(q+1)
-                        << " - " << V << " y"<<(i1+1)<<"_"<< (j2+1)<<"_"<<(q+1);
-                    lpf << " + " << V << " z"<<(i1+1)<<"_"<< (j1+1)<<"_"<<(i1+1)<<"_"<< (j2+1)<<"_"<<(q+1)
-                        << " >= " << (l==1?"":"-") << (l==1?jobs[i1].ops[j2].duration/dGCD:V*2-jobs[i1].ops[j2].duration/dGCD) << "\n";
-                    lpf << "x"<<(i1+1)<<"_"<< (j2+1) << " - x"<<(i1+1)<<"_"<< (j1+1);
-                    if(l >= 2)
-                    lpf << " - " << V << " y"<<(i1+1)<<"_"<< (j1+1)<<"_"<<(q+1)
-                        << " - " << V << " y"<<(i1+1)<<"_"<< (j2+1)<<"_"<<(q+1);
-                    lpf << " - " << V << " z"<<(i1+1)<<"_"<< (j1+1)<<"_"<<(i1+1)<<"_"<< (j2+1)<<"_"<<(q+1)
-                        << " >= -" << (V*(l==1?1:3)-jobs[i1].ops[j1].duration/dGCD) << "\n";
+                    lpf << "x"<<(i1+1)<<"_"<<(j1+1) << " - x"<<(i1+1)<<"_"<<(j2+1)
+                        << " - " << V << " y"<<(i1+1)<<"_"<<(j1+1)<<"_"<<(q+1)
+                        << " - " << V << " y"<<(i1+1)<<"_"<<(j2+1)<<"_"<<(q+1)
+                        << " + " << V << " z"<<(i1+1)<<"_"<<(j1+1)<<"_"<<(i1+1)<<"_"<<(j2+1)<<"_"<<(q+1)
+                        << " >= -" << (V*2-jobs[i1].ops[j2].duration/dGCD) << "\n";
+                    lpf << "x"<<(i1+1)<<"_"<<(j2+1) << " - x"<<(i1+1)<<"_"<<(j1+1)
+                        << " - " << V << " y"<<(i1+1)<<"_"<<(j1+1)<<"_"<<(q+1)
+                        << " - " << V << " y"<<(i1+1)<<"_"<<(j2+1)<<"_"<<(q+1)
+                        << " - " << V << " z"<<(i1+1)<<"_"<<(j1+1)<<"_"<<(i1+1)<<"_"<<(j2+1)<<"_"<<(q+1)
+                        << " >= -" << (V*3-jobs[i1].ops[j1].duration/dGCD) << "\n";
                 }
                 for(i2 = i1+1; i2 < jobs.size(); i2++)
-                    for (j2 = 0; j2 < jobs[i2].ops.size(); j2++) {
-                        lpf << "x"<<(i1+1)<<"_"<< (j1+1) << " - x"<<(i2+1)<<"_"<< (j2+1);
-                        if(l >= 2)
-                        lpf << " - " << V << " y"<<(i1+1)<<"_"<< (j1+1)<<"_"<<(q+1)
-                            << " - " << V << " y"<<(i2+1)<<"_"<< (j2+1)<<"_"<<(q+1);
-                        lpf << " + " << V << " z"<<(i1+1)<<"_"<< (j1+1)<<"_"<<(i2+1)<<"_"<< (j2+1)<<"_"<<(q+1)
-                            << " >= " << (l==1?"":"-") << (l==1?jobs[i2].ops[j2].duration/dGCD:V*2-jobs[i2].ops[j2].duration/dGCD) << "\n";
-                        lpf << "x"<<(i2+1)<<"_"<< (j2+1) << " - x"<<(i1+1)<<"_"<< (j1+1);
-                        if(l >= 2)
-                        lpf << " - " << V << " y"<<(i1+1)<<"_"<< (j1+1)<<"_"<<(q+1)
-                            << " - " << V << " y"<<(i2+1)<<"_"<< (j2+1)<<"_"<<(q+1);
-                        lpf << " - " << V << " z"<<(i1+1)<<"_"<< (j1+1)<<"_"<<(i2+1)<<"_"<< (j2+1)<<"_"<<(q+1)
-                            << " >= -" << (V*(l==1?1:3)-jobs[i1].ops[j1].duration/dGCD) << "\n";
+                    for(j2 = 0; j2 < jobs[i2].ops.size(); j2++) {
+                        if(l == 1 && !(jobs[i1].ops[j1].front && jobs[i2].ops[j2].back)
+                                  && !(jobs[i2].ops[j2].front && jobs[i1].ops[j1].back)) continue;
+                        lpf << "x"<<(i1+1)<<"_"<<(j1+1) << " - x"<<(i2+1)<<"_"<<(j2+1)
+                            << " - " << V << " y"<<(i1+1)<<"_"<<(j1+1)<<"_"<<(q+1)
+                            << " - " << V << " y"<<(i2+1)<<"_"<<(j2+1)<<"_"<<(q+1)
+                            << " + " << V << " z"<<(i1+1)<<"_"<<(j1+1)<<"_"<<(i2+1)<<"_"<<(j2+1)<<"_"<<(q+1)
+                            << " >= -" << (V*2-jobs[i2].ops[j2].duration/dGCD) << "\n";
+                        lpf << "x"<<(i2+1)<<"_"<<(j2+1) << " - x"<<(i1+1)<<"_"<<(j1+1)
+                            << " - " << V << " y"<<(i1+1)<<"_"<<(j1+1)<<"_"<<(q+1)
+                            << " - " << V << " y"<<(i2+1)<<"_"<<(j2+1)<<"_"<<(q+1)
+                            << " - " << V << " z"<<(i1+1)<<"_"<<(j1+1)<<"_"<<(i2+1)<<"_"<<(j2+1)<<"_"<<(q+1)
+                            << " >= -" << (V*3-jobs[i1].ops[j1].duration/dGCD) << "\n";
                     }
             }
-    for(i = 0; i < jobs.size(); i++) {
-        for (j = 0; j < jobs[i].ops.size(); j++) {
+    if(l >= 2) for(i = 0; i < jobs.size(); i++) {
+        for(j = 0; j < jobs[i].ops.size(); j++) {
             for(q = 0; q < l; q++) {
                 if(q) lpf << " + ";
                 lpf << "y"<<(i+1)<<"_"<<(j+1)<<"_"<<(q+1);
             }
             lpf << " = " << jobs[i].ops[j].slices << "\n";
-            lpf << "c"<<(i+1) << " - x"<<(i+1)<<"_"<< (j+1) << " >= " << (jobs[i].ops[j].duration/dGCD) << "\n";
+            lpf << "c"<<(i+1) << " - x"<<(i+1)<<"_"<<(j+1) << " >= " << (jobs[i].ops[j].duration/dGCD) << "\n";
         }
         lpf << "cmax - c"<<(i+1) << " >= 0\n";
     }
+    if(l == 1) lpf << "cmax = "<< (V) << "\n";
     lpf << "GENERAL cmax";
     for(i = 0; i < jobs.size(); i++) {
         lpf << "\nc"<<(i+1);
-        for (j = 0; j < jobs[i].ops.size(); j++) {
+        if(l >= 2) for(j = 0; j < jobs[i].ops.size(); j++) {
             lpf << " x"<<(i+1)<<"_"<<(j+1);
             if(carriage++%16==15) lpf << "\n";
         }
@@ -219,19 +236,21 @@ SCIP_RETCODE FormulateMIP(SCIP* scip, std::vector<SCIP_VAR*> &x, std::vector<SCI
     lpf << "\nBINARY";
     for(q = 0; q < l; q++)
         for(i1 = 0; i1 < jobs.size(); i1++)
-            for (j1 = 0; j1 < jobs[i1].ops.size(); j1++) {
-                if(l >= 2) lpf << "\ny"<<(i1+1)<<"_"<<(j1+1)<<"_"<<(q+1);
-                for (j2 = j1+1; j2 < jobs[i1].ops.size(); j2++) {
+            if(l == 1) for(i2 = i1+1; i2 < jobs.size(); i2++)
+                lpf << " z"<<(i1+1)<<"_1_"<<(i2+1)<<"_1_1";
+            else for(j1 = 0; j1 < jobs[i1].ops.size(); j1++) {
+                lpf << "\ny"<<(i1+1)<<"_"<<(j1+1)<<"_"<<(q+1);
+                for(j2 = j1+1; j2 < jobs[i1].ops.size(); j2++) {
                     bool skip = false;
                     for(auto &d : jobs[i1].ops[j1].deps) if(d == j2) skip = true;
                     for(auto &d : jobs[i1].ops[j2].deps) if(d == j1) skip = true;
                     if(skip) continue;
-                    lpf << " z"<<(i1+1)<<"_"<< (j1+1)<<"_"<<(i1+1)<<"_"<< (j2+1)<<"_"<<(q+1);
+                    lpf << " z"<<(i1+1)<<"_"<<(j1+1)<<"_"<<(i1+1)<<"_"<<(j2+1)<<"_"<<(q+1);
                     if(carriage++%16==15) lpf << "\n";
                 }
                 for(i2 = i1+1; i2 < jobs.size(); i2++) {
-                    for (j2 = 0; j2 < jobs[i2].ops.size(); j2++) {
-                        lpf << " z"<<(i1+1)<<"_"<< (j1+1)<<"_"<<(i2+1)<<"_"<< (j2+1)<<"_"<<(q+1);
+                    for(j2 = 0; j2 < jobs[i2].ops.size(); j2++) {
+                        lpf << " z"<<(i1+1)<<"_"<<(j1+1)<<"_"<<(i2+1)<<"_"<<(j2+1)<<"_"<<(q+1);
                         if(carriage++%16==15) lpf << "\n";
                     }
                 }
@@ -241,7 +260,7 @@ SCIP_RETCODE FormulateMIP(SCIP* scip, std::vector<SCIP_VAR*> &x, std::vector<SCI
     // Setup the problem in SCIP
     VR = V;
     for(i = 0; i < jobs.size(); i++)
-        for (j = 0; j < jobs[i].ops.size(); j++) {
+        for(j = 0; j < jobs[i].ops.size(); j++) {
             jobs[i].ops[j].ij = Ops.size();
             Ops.push_back(&jobs[i].ops[j]);
         }
@@ -255,12 +274,17 @@ SCIP_RETCODE FormulateMIP(SCIP* scip, std::vector<SCIP_VAR*> &x, std::vector<SCI
     SCIP_CALL( SCIPcreateProbBasic(scip, "JSP") );
     SCIP_CALL( SCIPcreateVarBasic(scip, &Cmax, "cmax", 0.0, VR, 1.0, SCIP_VARTYPE_INTEGER) );
     SCIP_CALL( SCIPaddVar(scip, Cmax) );
-    for(i = 0; i < jobs.size(); i++) {
+    if(l == 1) for(i = 0; i < jobs.size(); i++) {
+        (void) SCIPsnprintf(name, SCIP_MAXSTRLEN, "c%d", i+1);
+        SCIP_CALL( SCIPcreateVarBasic(scip, &c[i], name, jobs[i].duration, VR, jobs[i].weight, SCIP_VARTYPE_INTEGER) );
+        SCIP_CALL( SCIPaddVar(scip, c[i]) );
+    }
+    else for(i = 0; i < jobs.size(); i++) {
         (void) SCIPsnprintf(name, SCIP_MAXSTRLEN, "c%d", i+1);
         SCIP_CALL( SCIPcreateVarBasic(scip, &c[i], name, 0.0, VR, jobs[i].weight, SCIP_VARTYPE_INTEGER) );
         SCIP_CALL( SCIPaddVar(scip, c[i]) );
     }
-    for(j = 0; j < Ops.size(); j++) {
+    if(l >= 2) for(j = 0; j < Ops.size(); j++) {
         (void) SCIPsnprintf(name, SCIP_MAXSTRLEN, "x%d", j+1);
         SCIP_CALL( SCIPcreateVarBasic(scip, &x[j], name, 0.0, VR, 0.0, SCIP_VARTYPE_INTEGER) );
         SCIP_CALL( SCIPaddVar(scip, x[j]) );
@@ -276,7 +300,7 @@ SCIP_RETCODE FormulateMIP(SCIP* scip, std::vector<SCIP_VAR*> &x, std::vector<SCI
         SCIP_CALL( SCIPaddVar(scip, z[j1*Ops.size()*l+j2*l+q]) );
     }
     // Constraints
-    for(i = 0; i < jobs.size(); i++) for (j = 0; j < jobs[i].ops.size(); j++) for(auto &d : jobs[i].ops[j].deps) {
+    if(l >= 2) for(i = 0; i < jobs.size(); i++) for(j = 0; j < jobs[i].ops.size(); j++) for(auto &d : jobs[i].ops[j].deps) {
         SCIP_CONS* Pre;
         jobs[i].ops[d].pre = true;
         Deps[jobs[i].ops[j].ij*Ops.size()+jobs[i].ops[d].ij] = true;
@@ -288,22 +312,41 @@ SCIP_RETCODE FormulateMIP(SCIP* scip, std::vector<SCIP_VAR*> &x, std::vector<SCI
         Precedence.push_back(Pre);
         SCIP_CALL( SCIPreleaseCons(scip, &Pre) );
     }
-    for(j1 = 0; j1 < Ops.size(); j1++) for(j2 = j1+1; j2 < Ops.size(); j2++) for(q = 0; q < l; q++) {
+    if(l == 1) for(i1 = 0; i1 < jobs.size(); i1++) for(i2 = i1+1; i2 < jobs.size(); i2++) {
+        SCIP_CONS *DisP, *DisN;
+        (void) SCIPsnprintf(name, SCIP_MAXSTRLEN, "(4)%d-%d", i1+1, i2+1);
+        SCIP_CALL( SCIPcreateConsBasicLinear(scip, &DisP, name, 0, NULL, NULL, jobs[i1].duration/dGCD, SCIPinfinity(scip)) );
+        SCIP_CALL( SCIPaddCoefLinear(scip, DisP, c[i1], 1.0) );
+        SCIP_CALL( SCIPaddCoefLinear(scip, DisP, c[i2], -1.0) );
+        SCIP_CALL( SCIPaddCoefLinear(scip, DisP, z[jobs[i1].ops[0].ij*Ops.size()*l+jobs[i2].ops[0].ij*l], VR) );
+        (void) SCIPsnprintf(name, SCIP_MAXSTRLEN, "(5)%d-%d", i1+1, i2+1);
+        SCIP_CALL( SCIPcreateConsBasicLinear(scip, &DisN, name, 0, NULL, NULL, -VR+jobs[i2].duration/dGCD, SCIPinfinity(scip)) );
+        SCIP_CALL( SCIPaddCoefLinear(scip, DisN, c[i2], 1.0) );
+        SCIP_CALL( SCIPaddCoefLinear(scip, DisN, c[i1], -1.0) );
+        SCIP_CALL( SCIPaddCoefLinear(scip, DisN, z[jobs[i1].ops[0].ij*Ops.size()*l+jobs[i2].ops[0].ij*l], -VR) );
+        SCIP_CALL( SCIPaddCons(scip, DisP) );
+        SCIP_CALL( SCIPaddCons(scip, DisN) );
+        Precedence.push_back(DisP);
+        Precedence.push_back(DisN);
+        SCIP_CALL( SCIPreleaseCons(scip, &DisP) );
+        SCIP_CALL( SCIPreleaseCons(scip, &DisN) );
+    }
+    else for(j1 = 0; j1 < Ops.size(); j1++) for(j2 = j1+1; j2 < Ops.size(); j2++) for(q = 0; q < l; q++) {
         SCIP_CONS *DisP, *DisN;
         if(Deps[j1*Ops.size()+j2] || Deps[j2*Ops.size()+j1]) break;
         (void) SCIPsnprintf(name, SCIP_MAXSTRLEN, "(4)%d-%d-%d", j1+1, j2+1, q+1);
-        SCIP_CALL( SCIPcreateConsBasicLinear(scip, &DisP, name, 0, NULL, NULL, -VR*(l==1?0:2)+Ops[j2]->duration/dGCD, SCIPinfinity(scip)) );
+        SCIP_CALL( SCIPcreateConsBasicLinear(scip, &DisP, name, 0, NULL, NULL, -VR*2+Ops[j2]->duration/dGCD, SCIPinfinity(scip)) );
         SCIP_CALL( SCIPaddCoefLinear(scip, DisP, x[j1], 1.0) );
         SCIP_CALL( SCIPaddCoefLinear(scip, DisP, x[j2], -1.0) );
-        if(l >= 2) SCIP_CALL( SCIPaddCoefLinear(scip, DisP, y[j1*l+q], -VR) );
-        if(l >= 2) SCIP_CALL( SCIPaddCoefLinear(scip, DisP, y[j2*l+q], -VR) );
+        SCIP_CALL( SCIPaddCoefLinear(scip, DisP, y[j1*l+q], -VR) );
+        SCIP_CALL( SCIPaddCoefLinear(scip, DisP, y[j2*l+q], -VR) );
         SCIP_CALL( SCIPaddCoefLinear(scip, DisP, z[j1*Ops.size()*l+j2*l+q], VR) );
         (void) SCIPsnprintf(name, SCIP_MAXSTRLEN, "(5)%d-%d-%d", j1+1, j2+1, q+1);
-        SCIP_CALL( SCIPcreateConsBasicLinear(scip, &DisN, name, 0, NULL, NULL, -VR*(l==1?1:3)+Ops[j1]->duration/dGCD, SCIPinfinity(scip)) );
+        SCIP_CALL( SCIPcreateConsBasicLinear(scip, &DisN, name, 0, NULL, NULL, -VR*3+Ops[j1]->duration/dGCD, SCIPinfinity(scip)) );
         SCIP_CALL( SCIPaddCoefLinear(scip, DisN, x[j2], 1.0) );
         SCIP_CALL( SCIPaddCoefLinear(scip, DisN, x[j1], -1.0) );
-        if(l >= 2) SCIP_CALL( SCIPaddCoefLinear(scip, DisN, y[j1*l+q], -VR) );
-        if(l >= 2) SCIP_CALL( SCIPaddCoefLinear(scip, DisN, y[j2*l+q], -VR) );
+        SCIP_CALL( SCIPaddCoefLinear(scip, DisN, y[j1*l+q], -VR) );
+        SCIP_CALL( SCIPaddCoefLinear(scip, DisN, y[j2*l+q], -VR) );
         SCIP_CALL( SCIPaddCoefLinear(scip, DisN, z[j1*Ops.size()*l+j2*l+q], -VR) );
         SCIP_CALL( SCIPaddCons(scip, DisP) );
         SCIP_CALL( SCIPaddCons(scip, DisN) );
@@ -322,7 +365,7 @@ SCIP_RETCODE FormulateMIP(SCIP* scip, std::vector<SCIP_VAR*> &x, std::vector<SCI
         Slice.push_back(Slic);
         SCIP_CALL( SCIPreleaseCons(scip, &Slic) );
     }
-    for(i = 0; i < jobs.size(); i++) for (j = 0; j < jobs[i].ops.size(); j++) {
+    if(l >= 2) for(i = 0; i < jobs.size(); i++) for(j = 0; j < jobs[i].ops.size(); j++) {
         SCIP_CONS *Last;
         if(jobs[i].ops[j].pre) continue;
         (void) SCIPsnprintf(name, SCIP_MAXSTRLEN, "(7)%d", jobs[i].ops[j].ij+1);
@@ -343,9 +386,14 @@ SCIP_RETCODE FormulateMIP(SCIP* scip, std::vector<SCIP_VAR*> &x, std::vector<SCI
         LastMax.push_back(LastM);
         SCIP_CALL( SCIPreleaseCons(scip, &LastM) );
     }
+    if(l == 1) {
+        SCIP_CONS *LastH;
+        SCIP_CALL( SCIPcreateConsBasicLinear(scip, &LastH, "(V)", 0, NULL, NULL, VR, VR) );
+        SCIP_CALL( SCIPaddCoefLinear(scip, LastH, Cmax, 1.0) );
+        SCIP_CALL( SCIPaddCons(scip, LastH) );
+        SCIP_CALL( SCIPreleaseCons(scip, &LastH) );
+    }
     SCIP_CALL( SCIPreleaseVar(scip, &Cmax) );
-    for(i = 0; i < jobs.size(); i++)
-        SCIP_CALL( SCIPreleaseVar(scip, &c[i]) );
     for(j1 = 0; j1 < Ops.size(); j1++) for(j2 = j1+1; j2 < Ops.size(); j2++) for(q = 0; q < l; q++)
         SCIP_CALL( SCIPreleaseVar(scip, &z[j1*Ops.size()*l+j2*l+q]) );
     return SCIP_OKAY;
@@ -356,23 +404,24 @@ SCIP_RETCODE RunJSP(const std::string &outfile, std::vector<Job> &jobs, const ui
     SCIP_SOL* Sol;
     uint32_t dGCD;
     int NSols, tLimit;
-    std::vector<SCIP_VAR*> x, y;
+    std::vector<SCIP_VAR*> c, x, y;
     SCIP_CALL( SCIPcreate(&scip) );
     SCIP_CALL( SCIPincludeDefaultPlugins(scip) );
 
-    SCIP_CALL( FormulateMIP(scip, x, y, outfile+".lp", jobs, l, dGCD) );
-    // SCIP_CALL( SCIPprintOrigProblem(scip, NULL, "cip", FALSE) );
+    SCIP_CALL( FormulateMIP(scip, c, x, y, outfile+".lp", jobs, l, dGCD) );
+    SCIP_CALL( SCIPprintOrigProblem(scip, NULL, "cip", FALSE) );
     std::cerr << "\nNumber of operations: " << x.size() << "\n";
     // There is a time limit of 12 hours for the public tests combined
     // The time limit for the private tests combined is 24 hours
     switch(x.size()) {
-        case   1 ...  20: tLimit =   600; break; // 0 2 3 4
-        case  21 ...  35: tLimit =  1800; break; // 7 6 5
-        case  36 ... 100: tLimit =  3600; break; // 8 9
+        case   1 ...  20: tLimit =   720; break; // 0 2 3 4
+        case  21 ...  35: tLimit =  3600; break; // 7 6 5
+        case  36 ... 100: tLimit =  5400; break; // 8 9
         case 101 ... 180: tLimit =  7200; break; // 1
-        default: tLimit = 21000; // 10
+        default: tLimit = 11520; // 10
     }
     SCIP_CALL( SCIPsetRealParam(scip, "limits/time", tLimit) );
+    if(x.size() <= 35) SCIP_CALL( SCIPsetIntParam(scip, "misc/usesymmetry", 0) );
 
     SCIPinfoMessage(scip, NULL, "\nPresolving...\n");
     SCIP_CALL( SCIPpresolve(scip) );
@@ -384,17 +433,26 @@ SCIP_RETCODE RunJSP(const std::string &outfile, std::vector<Job> &jobs, const ui
         SCIPinfoMessage(scip, NULL, "\nSolution:\n");
         Sol = SCIPgetBestSol(scip);
         SCIP_CALL( SCIPprintSol(scip, Sol, NULL, FALSE) );
-        for(auto &job : jobs) for (auto &op : job.ops) {
+        if(l == 1) for(uint8_t i = 0; i < jobs.size(); i++) {
+            uint32_t start_time = SCIPgetSolVal(scip, Sol, c[i]) * dGCD - jobs[i].duration;
+            for(auto &j : jobs[i].opTopo) {
+                jobs[i].ops[j].start_time = start_time;
+                start_time += jobs[i].ops[j].duration;
+                jobs[i].ops[j].in_slice.push_back(0);
+            }
+        }
+        else for(auto &job : jobs) for(auto &op : job.ops) {
             op.start_time = SCIPgetSolVal(scip, Sol, x[op.ij]) * dGCD;
             std::cerr<<SCIPvarGetName(x[op.ij])<<" "<<SCIPgetSolVal(scip, Sol, x[op.ij])<<" "<<op.start_time<<"\n";
             for(uint8_t q = 0; q < l; q++) {
-                if(l == 1 || SCIPisFeasEQ(scip, SCIPgetSolVal(scip, Sol, y[op.ij*l+q]), 1.0)) op.in_slice.push_back(q);
-                if(l >= 2) std::cerr<<SCIPvarGetName(y[op.ij*l+q])<<" "<<SCIPgetSolVal(scip, Sol, y[op.ij*l+q])<<"\n";
+                if(SCIPisFeasEQ(scip, SCIPgetSolVal(scip, Sol, y[op.ij*l+q]), 1.0)) op.in_slice.push_back(q);
+                std::cerr<<SCIPvarGetName(y[op.ij*l+q])<<" "<<SCIPgetSolVal(scip, Sol, y[op.ij*l+q])<<"\n";
             }
         }
     }
 
-    for(auto &i : x) SCIP_CALL( SCIPreleaseVar(scip, &i) );
+    for(auto &i : c) SCIP_CALL( SCIPreleaseVar(scip, &i) );
+    if(l >= 2) for(auto &i : x) SCIP_CALL( SCIPreleaseVar(scip, &i) );
     if(l >= 2) for(auto &j : y) SCIP_CALL( SCIPreleaseVar(scip, &j) );
     SCIP_CALL( SCIPfree(&scip) );
     return NSols ? SCIP_OKAY : SCIP_ERROR;
@@ -421,10 +479,6 @@ void TraditionalScheduling(std::vector<Job> &jobs, const uint16_t &l) {
     });
     for (auto &j : j_order) {
         uint32_t j_end{global_start};
-        // Sort the operations in (Reversed) Topological Ordering
-        for (uint16_t i = 0; i < jobs[j].ops.size(); i++)
-            OpTopoSort(jobs[j], i);
-        assert(jobs[j].ops.size() == jobs[j].opTopo.size());
         // Schedule each operation in the job
         for (auto &o : jobs[j].opTopo) {
             uint32_t j_start{j_end};

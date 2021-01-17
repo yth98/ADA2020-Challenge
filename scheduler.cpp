@@ -363,12 +363,14 @@ SCIP_RETCODE RunJSP(const std::string &outfile, std::vector<Job> &jobs, const ui
     SCIP_CALL( FormulateMIP(scip, x, y, outfile+".lp", jobs, l, dGCD) );
     // SCIP_CALL( SCIPprintOrigProblem(scip, NULL, "cip", FALSE) );
     std::cerr << "\nNumber of operations: " << x.size() << "\n";
+    // There is a time limit of 12 hours for the public tests combined
+    // The time limit for the private tests combined is 24 hours
     switch(x.size()) {
         case   1 ...  20: tLimit =   600; break; // 0 2 3 4
         case  21 ...  35: tLimit =  1800; break; // 7 6 5
-        case  36 ... 100: tLimit =  5400; break; // 8 9
-        case 101 ... 180: tLimit = 10800; break; // 1
-        default: tLimit = 57600; // 10
+        case  36 ... 100: tLimit =  3600; break; // 8 9
+        case 101 ... 180: tLimit =  7200; break; // 1
+        default: tLimit = 21000; // 10
     }
     SCIP_CALL( SCIPsetRealParam(scip, "limits/time", tLimit) );
 

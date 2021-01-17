@@ -15,7 +15,7 @@ scheduler: scheduler.cpp libs/lib/libscip.so
 
 out/%.out: scheduler libs/lib/libscip.so in/%.in
 	mkdir -p out
-	export LD_LIBRARY_PATH=libs/lib/; ./scheduler in/$(patsubst out/%.out,%.in,$@) $@
+	export LD_LIBRARY_PATH=libs/lib/; time ./scheduler in/$(patsubst out/%.out,%.in,$@) $@
 
 validate%: checker in/%.in out/%.out
 	./checker --public in/$(patsubst validate%,%.in,$@) out/$(patsubst validate%,%.out,$@)
@@ -26,9 +26,13 @@ clean:
 scipoptsuite-7.0.2: scipoptsuite-7.0.2.tgz
 	if [ ! -d "scipoptsuite-7.0.2" ]; then tar xvzf scipoptsuite-7.0.2.tgz; fi
 
-build/bin/scip: | scipoptsuite-7.0.2
+bliss/libbliss.a: bliss-0.73.zip
+	if [ ! -d "bliss" ]; then unzip bliss-0.73.zip; mv bliss-0.73 bliss; fi
+	cd bliss; make
+
+build/bin/scip: | scipoptsuite-7.0.2 bliss/libbliss.a
 	mkdir -p build
-	cmake -Bbuild -Hscipoptsuite-7.0.2 -DGMP=OFF -DREADLINE=OFF -DTPI=tny -DZIMPL=OFF -DZLIB=OFF -LH
+	cmake -Bbuild -Hscipoptsuite-7.0.2 -DBLISS_INCLUDE_DIR=. -DBLISS_LIBRARY=bliss/libbliss.a -DGMP=OFF -DREADLINE=OFF -DSYM=bliss -DTPI=tny -DZIMPL=OFF -DZLIB=OFF -LH
 	cd build; make
 
 libs/lib/libscip.so: | build/bin/scip

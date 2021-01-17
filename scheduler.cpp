@@ -355,7 +355,7 @@ SCIP_RETCODE RunJSP(const std::string &outfile, std::vector<Job> &jobs, const ui
     SCIP* scip;
     SCIP_SOL* Sol;
     uint32_t dGCD;
-    int NSols;
+    int NSols, tLimit;
     std::vector<SCIP_VAR*> x, y;
     SCIP_CALL( SCIPcreate(&scip) );
     SCIP_CALL( SCIPincludeDefaultPlugins(scip) );
@@ -363,7 +363,14 @@ SCIP_RETCODE RunJSP(const std::string &outfile, std::vector<Job> &jobs, const ui
     SCIP_CALL( FormulateMIP(scip, x, y, outfile+".lp", jobs, l, dGCD) );
     // SCIP_CALL( SCIPprintOrigProblem(scip, NULL, "cip", FALSE) );
     std::cerr << "\nNumber of operations: " << x.size() << "\n";
-    SCIP_CALL( SCIPsetRealParam(scip, "limits/time", (x.size() >= 100) ? 14400.0 : (x.size() >= 40) ? 5400.0 : 600.0) );
+    switch(x.size()) {
+        case   1 ...  20: tLimit =   600; break; // 0 2 3 4
+        case  21 ...  35: tLimit =  1800; break; // 7 6 5
+        case  36 ... 100: tLimit =  5400; break; // 8 9
+        case 101 ... 180: tLimit = 10800; break; // 1
+        default: tLimit = 57600; // 10
+    }
+    SCIP_CALL( SCIPsetRealParam(scip, "limits/time", tLimit) );
 
     SCIPinfoMessage(scip, NULL, "\nPresolving...\n");
     SCIP_CALL( SCIPpresolve(scip) );
@@ -379,7 +386,7 @@ SCIP_RETCODE RunJSP(const std::string &outfile, std::vector<Job> &jobs, const ui
             op.start_time = SCIPgetSolVal(scip, Sol, x[op.ij]) * dGCD;
             std::cerr<<SCIPvarGetName(x[op.ij])<<" "<<SCIPgetSolVal(scip, Sol, x[op.ij])<<" "<<op.start_time<<"\n";
             for(uint8_t q = 0; q < l; q++) {
-                if(l == 1 || SCIPgetSolVal(scip, Sol, y[op.ij*l+q]) > 0) op.in_slice.push_back(q);
+                if(l == 1 || SCIPisFeasEQ(scip, SCIPgetSolVal(scip, Sol, y[op.ij*l+q]), 1.0)) op.in_slice.push_back(q);
                 if(l >= 2) std::cerr<<SCIPvarGetName(y[op.ij*l+q])<<" "<<SCIPgetSolVal(scip, Sol, y[op.ij*l+q])<<"\n";
             }
         }

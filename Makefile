@@ -32,7 +32,8 @@ bliss/libbliss.a: bliss-0.73.zip
 
 build/bin/scip: | scipoptsuite-7.0.2 bliss/libbliss.a
 	mkdir -p build
-	cmake -Bbuild -Hscipoptsuite-7.0.2 -DBLISS_INCLUDE_DIR=. -DBLISS_LIBRARY=bliss/libbliss.a -DGMP=OFF -DREADLINE=OFF -DSYM=bliss -DTPI=tny -DZIMPL=OFF -DZLIB=OFF -LH
+	if [ ! -d "build/bliss" ]; then ln -s ../bliss build/bliss; fi
+	cd build; cmake -B. -H../scipoptsuite-7.0.2 -DBLISS_DIR=../bliss -DGMP=OFF -DREADLINE=OFF -DSYM=bliss -DTPI=tny -DZIMPL=OFF -DZLIB=OFF -LH
 	cd build; make
 
 libs/lib/libscip.so: | build/bin/scip

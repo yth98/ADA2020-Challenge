@@ -109,40 +109,36 @@ std::pair<uint16_t, std::vector<Job>> ReadJobs(const std::string &file) {
     return {l, jobs};
 }
 
-long double WriteSchedule(
+void WriteSchedule(
     const std::string &outfile, const std::vector<Job> &jobs) {
     std::ofstream outf(outfile);
 
-    long double makespan = 0, weighted_flow;
+    for (size_t j = 0; j < jobs.size(); j++) for (size_t k = 0; k < jobs[j].ops.size(); k++) {
+        outf << jobs[j].ops[k].start_time;
+        for (auto &s : jobs[j].ops[k].in_slice) outf << " " << (s + 1);
+        outf << "\n";
+    }
+}
+
+long double CalculateScore(std::vector<Job> &jobs) {
+    long double makespan = 0, weighted_flow = 0;
     for (size_t j = 0; j < jobs.size(); j++) {
         long double job_end = 0;
         for (size_t k = 0; k < jobs[j].ops.size(); k++) {
-            outf << jobs[j].ops[k].start_time;
-
-            for (auto &s : jobs[j].ops[k].in_slice) {
-                outf << " " << (s + 1);
-            }
-
             uint32_t fin = jobs[j].ops[k].start_time + jobs[j].ops[k].duration;
             makespan = std::max<long double>(makespan, fin);
             job_end = std::max<long double>(job_end, fin);
-            outf << "\n";
         }
         weighted_flow += static_cast<long double>(jobs[j].weight) * job_end;
     }
-
-    weighted_flow += makespan;
-    return weighted_flow;
-}
-
-long double CalculateScore(const std::string &outfile, std::vector<Job> &jobs) {
-    return WriteSchedule(outfile, jobs);
+    return weighted_flow + makespan;
 }
 
 static
 SCIP_RETCODE FormulateMIP(SCIP* scip, std::vector<SCIP_VAR*> &c, std::vector<SCIP_VAR*> &x, std::vector<SCIP_VAR*> &y,
-                          const std::string &lpfile, std::vector<Job> &jobs, const uint16_t &l, uint32_t &dGCD) {
+                          const std::string &lpfile, std::vector<Job> &jobs, const uint16_t &l, uint32_t &dGCD, const long double bound) {
     SCIP_VAR* Cmax;
+    SCIP_CONS *Bound;
     uint32_t V = 0; SCIP_Real VR;
     uint16_t j, j1, j2;
     uint8_t i, i1, i2, q, carriage{0};
@@ -262,7 +258,7 @@ SCIP_RETCODE FormulateMIP(SCIP* scip, std::vector<SCIP_VAR*> &c, std::vector<SCI
     lpf.close();
 
     // Setup the problem in SCIP
-    VR = V;
+    VR = std::min<uint32_t>(V, (uint32_t)std::round(bound));
     for(i = 0; i < jobs.size(); i++)
         for(j = 0; j < jobs[i].ops.size(); j++) {
             jobs[i].ops[j].ij = Ops.size();
@@ -426,13 +422,19 @@ SCIP_RETCODE FormulateMIP(SCIP* scip, std::vector<SCIP_VAR*> &c, std::vector<SCI
             SCIP_CALL( SCIPreleaseCons(scip, &Heur) );
         }
     }
+    SCIP_CALL( SCIPcreateConsBasicLinear(scip, &Bound, "(Bound)", 0, NULL, NULL, -SCIPinfinity(scip), bound) );
+    SCIP_CALL( SCIPaddCoefLinear(scip, Bound, Cmax, 1.0) );
+    for(i = 0; i < jobs.size(); i++)
+        SCIP_CALL( SCIPaddCoefLinear(scip, Bound, c[i], jobs[i].weight) );
+    SCIP_CALL( SCIPaddCons(scip, Bound) );
+    SCIP_CALL( SCIPreleaseCons(scip, &Bound) );
     SCIP_CALL( SCIPreleaseVar(scip, &Cmax) );
     for(j1 = 0; j1 < Ops.size(); j1++) for(j2 = j1+1; j2 < Ops.size(); j2++)
         SCIP_CALL( SCIPreleaseVar(scip, &z[j1*Ops.size()+j2]) );
     return SCIP_OKAY;
 }
 
-SCIP_RETCODE RunJSP(const std::string &outfile, std::vector<Job> &jobs, const uint16_t &l) {
+SCIP_RETCODE RunJSP(const std::string &outfile, std::vector<Job> &jobs, const uint16_t &l, const long double &bound) {
     SCIP* scip;
     SCIP_SOL* Sol;
     uint32_t dGCD;
@@ -441,7 +443,7 @@ SCIP_RETCODE RunJSP(const std::string &outfile, std::vector<Job> &jobs, const ui
     SCIP_CALL( SCIPcreate(&scip) );
     SCIP_CALL( SCIPincludeDefaultPlugins(scip) );
 
-    SCIP_CALL( FormulateMIP(scip, c, x, y, outfile+".lp", jobs, l, dGCD) );
+    SCIP_CALL( FormulateMIP(scip, c, x, y, outfile+".lp", jobs, l, dGCD, bound) );
     // SCIP_CALL( SCIPprintOrigProblem(scip, NULL, "cip", FALSE) );
     // std::cerr << "\nNumber of operations: " << x.size() << "\n";
     // There is a time limit of 12 hours for the public tests combined
@@ -462,9 +464,15 @@ SCIP_RETCODE RunJSP(const std::string &outfile, std::vector<Job> &jobs, const ui
     SCIP_CALL( SCIPsolve(scip) );
 
     if( (NSols = SCIPgetNSols(scip)) > 0 ) {
+        SCIP_Bool feasible;
         SCIPinfoMessage(scip, NULL, "\nSolution:\n");
         Sol = SCIPgetBestSol(scip);
         SCIP_CALL( SCIPprintSol(scip, Sol, NULL, FALSE) );
+        SCIP_CALL( SCIPcheckSol(scip, Sol, TRUE, FALSE, FALSE, TRUE, TRUE, &feasible) );
+        if(!feasible) {
+            SCIPinfoMessage(scip, NULL, "\nThe best solution is not feasible.\n");
+            return SCIP_ERROR;
+        }
         if(l == 1) for(uint8_t i = 0; i < jobs.size(); i++) {
             uint32_t start_time = SCIPgetSolVal(scip, Sol, c[i]) * dGCD - jobs[i].duration;
             for(auto &j : jobs[i].opTopo) {
@@ -475,6 +483,7 @@ SCIP_RETCODE RunJSP(const std::string &outfile, std::vector<Job> &jobs, const ui
         }
         else for(auto &job : jobs) for(auto &op : job.ops) {
             op.start_time = SCIPgetSolVal(scip, Sol, x[op.ij]) * dGCD;
+            op.in_slice.clear();
             // std::cerr<<SCIPvarGetName(x[op.ij])<<" "<<SCIPgetSolVal(scip, Sol, x[op.ij])<<" "<<op.start_time<<"\n";
             for(uint8_t q = 0; q < l; q++) {
                 if(SCIPisFeasEQ(scip, SCIPgetSolVal(scip, Sol, y[op.ij*l+q]), 1.0)) op.in_slice.push_back(q);
@@ -549,11 +558,18 @@ void TraditionalScheduling(std::vector<Job> &jobs, const uint16_t &l) {
 }  // namespace
 
 int main(int argc, char **argv) {
+    SCIP_RETCODE JSP;
     assert(argc == 3);
     auto [l, jobs] = ReadJobs(argv[1]);
 
-    if(l >= 1 || RunJSP(argv[2], jobs, l) != SCIP_OKAY) TraditionalScheduling(jobs, l);
-    const auto score = CalculateScore(argv[2], jobs);
+    TraditionalScheduling(jobs, l);
+    const auto score = CalculateScore(jobs);
+    WriteSchedule(argv[2], jobs);
+    if(l >= 2 && (JSP = RunJSP(argv[2], jobs, l, score)) == SCIP_OKAY && CalculateScore(jobs) < score) {
+        WriteSchedule(argv[2], jobs);
+    }
 
-    std::cout << std::fixed << std::setprecision(8) << score << '\n';
+    std::cout << "Trad: " <<  std::fixed << std::setprecision(8) << score << '\n';
+    if(JSP == SCIP_OKAY)
+        std::cout << "SCIP: " <<  std::fixed << std::setprecision(8) << CalculateScore(jobs) << '\n';
 }

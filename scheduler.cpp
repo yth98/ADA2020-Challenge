@@ -224,6 +224,10 @@ SCIP_RETCODE FormulateMIP(SCIP* scip, std::vector<SCIP_VAR*> &c, std::vector<SCI
         }
         lpf << "cmax - c"<<(i+1) << " >= 0\n";
     }
+    if(l >= 10) for(i1 = 0; i1 < jobs.size()-1; i1++) for(i2 = i1+1; i2 < jobs.size(); i2++)
+        for(j1 = 0; j1 < jobs[i1].ops.size(); j1++) for(j2 = 0; j2 < jobs[i2].ops.size(); j2++)
+            lpf << "z"<<(i1+1)<<"_"<<(j1+1)<<"_"<<(i2+1)<<"_"<<(j2+1)
+                << " = " << (jobs[i1].weight * jobs[i2].ops[j2].duration >= jobs[i2].weight * jobs[i1].ops[j1].duration ? 1 : 0) << "\n";
     if(l == 1) lpf << "cmax = "<< (V) << "\n";
     lpf << "GENERAL cmax";
     for(i = 0; i < jobs.size(); i++) {
@@ -411,22 +415,15 @@ SCIP_RETCODE FormulateMIP(SCIP* scip, std::vector<SCIP_VAR*> &c, std::vector<SCI
         }
     }
     else if(Ops.size() >= 101) { // Heuristic for large problem
-        std::vector<uint16_t> j_order(jobs.size());
-        // Sort the jobs by weight in descending order
-        for(i = 0; i < jobs.size(); i++) j_order[i] = i;
-        std::sort(j_order.begin(), j_order.end(), [&](const uint16_t &a, const uint16_t &b) {
-            return jobs[a].weight > jobs[b].weight;
-        });
-        for(i1 = 0; i1 < jobs.size()-1; i1++) for(i2 = i1+1; i2 == i1+1; i2++)
-            if(jobs[j_order[i1]].weight >= 1.0 * jobs[j_order[i2]].weight) {
-                SCIP_CONS *Heur;
-                (void) SCIPsnprintf(name, SCIP_MAXSTRLEN, "(Heur)%d-%d", j_order[i1]+1, j_order[i2]+1);
-                SCIP_CALL( SCIPcreateConsBasicLinear(scip, &Heur, name, 0, NULL, NULL, 0.0, SCIPinfinity(scip)) );
-                SCIP_CALL( SCIPaddCoefLinear(scip, Heur, c[j_order[i2]], 1.0) );
-                SCIP_CALL( SCIPaddCoefLinear(scip, Heur, c[j_order[i1]], -1.0) );
-                SCIP_CALL( SCIPaddCons(scip, Heur) );
-                SCIP_CALL( SCIPreleaseCons(scip, &Heur) );
-            }
+        for(i1 = 0; i1 < jobs.size()-1; i1++) for(i2 = i1+1; i2 < jobs.size(); i2++) for(auto &J1 : jobs[i1].ops) for(auto &J2 : jobs[i2].ops) {
+            SCIP_CONS *Heur;
+            SCIP_Real is_pre = jobs[i1].weight * J2.duration >= jobs[i2].weight * J1.duration ? 1.0 : 0.0;
+            (void) SCIPsnprintf(name, SCIP_MAXSTRLEN, "(Heur)%d-%d", J1.ij+1, J2.ij+1);
+            SCIP_CALL( SCIPcreateConsBasicLinear(scip, &Heur, name, 0, NULL, NULL, is_pre, is_pre) );
+            SCIP_CALL( SCIPaddCoefLinear(scip, Heur, z[J1.ij*Ops.size()+J2.ij], 1.0) );
+            SCIP_CALL( SCIPaddCons(scip, Heur) );
+            SCIP_CALL( SCIPreleaseCons(scip, &Heur) );
+        }
     }
     SCIP_CALL( SCIPreleaseVar(scip, &Cmax) );
     for(j1 = 0; j1 < Ops.size(); j1++) for(j2 = j1+1; j2 < Ops.size(); j2++)

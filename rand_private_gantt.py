@@ -47,11 +47,11 @@ for _ in range(10):
     print(Slice[neighbor_slice][neighbor_idx], Slice[neighbor_slice][neighbor_idx+1], Slice[my_slice][my_idx], Slice[my_slice][my_idx+1])
 
 for q in range(l):
-    for i in range(0, Slice_Ops[q], 2):
+    for i in range(Slice_Ops[q]):
         O = dict()
         O['y'] = [q+1]
-        O['x'] = Slice[q][i]
-        O['d'] = Slice[q][i+1] - Slice[q][i]
+        O['x'] = Slice[q][i*2]
+        O['d'] = Slice[q][i*2+1] - Slice[q][i*2]
         Operations.append(O)
 
 random.shuffle(Operations)

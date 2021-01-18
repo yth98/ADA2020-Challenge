@@ -502,32 +502,47 @@ void OpTopoSort(Job &job, uint16_t &o) {
 }
 
 void TraditionalScheduling(std::vector<Job> &jobs, const uint16_t &l) {
-    uint32_t global_start{0};
     std::vector<uint16_t> j_order(jobs.size());
+    std::vector<uint32_t> slice_end(l, 0);
+    std::vector<uint8_t> slice_order(l);
     // Sort the jobs by weight in descending order
     for (uint8_t i = 0; i < jobs.size(); i++) j_order[i] = i;
     std::sort(j_order.begin(), j_order.end(), [&](const uint16_t &a, const uint16_t &b) {
-        if(l == 1) return jobs[a].weight * jobs[b].duration >= jobs[b].weight * jobs[a].duration;
+        if (l == 1) return jobs[a].weight * jobs[b].duration >= jobs[b].weight * jobs[a].duration;
         return jobs[a].weight >= jobs[b].weight;
     });
+    for (uint8_t q = 0; q < l; q++) slice_order[q] = q;
     for (auto &j : j_order) {
-        uint32_t j_end{global_start};
         // Schedule each operation in the job
         for (auto &o : jobs[j].opTopo) {
+            uint32_t j_end;
+            std::sort(slice_order.begin(), slice_order.end(), [&](const uint8_t &a, const uint8_t &b) {
+                return slice_end[a] < slice_end[b];
+            });
+            j_end = slice_end[slice_order[jobs[j].ops[o].slices-1]];
             uint32_t j_start{j_end};
             assert(!jobs[j].ops[o].done);
             for (auto &d : jobs[j].ops[o].deps) {
                 j_start = std::max<uint32_t>(j_start, jobs[j].ops[d].start_time + jobs[j].ops[d].duration);
             }
-            jobs[j].ops[o].start_time = j_end;
+            jobs[j].ops[o].start_time = j_start;
             // std::cerr << o << " " << jobs[j].ops[o].start_time << " " << j_start << " " << j_end << " " << jobs[j].ops[o].slices << "\n";
-            for (uint8_t s = 0; s < jobs[j].ops[o].slices; s++)
-                jobs[j].ops[o].in_slice.push_back(s);
-            j_end = std::max<uint32_t>(j_end, jobs[j].ops[o].start_time + jobs[j].ops[o].duration);
+            if (j_start == j_end)
+                for (uint8_t s = 0; s < jobs[j].ops[o].slices; s++) {
+                    jobs[j].ops[o].in_slice.push_back(slice_order[s]);
+                    slice_end[slice_order[s]] = jobs[j].ops[o].start_time + jobs[j].ops[o].duration;
+                }
+            else {
+                uint8_t q{(uint8_t)(jobs[j].ops[o].slices-1)};
+                while (q < l && slice_end[slice_order[q]] <= j_start) ++q;
+                for (uint8_t s = q-jobs[j].ops[o].slices; s < q; s++) {
+                    jobs[j].ops[o].in_slice.push_back(slice_order[s]);
+                    slice_end[slice_order[s]] = jobs[j].ops[o].start_time + jobs[j].ops[o].duration;
+                }
+            }
             jobs[j].ops[o].done = true;
         }
         // std::cerr << "\n";
-        global_start = j_end;
     }
 }
 
@@ -537,7 +552,7 @@ int main(int argc, char **argv) {
     assert(argc == 3);
     auto [l, jobs] = ReadJobs(argv[1]);
 
-    if(l == 1 || RunJSP(argv[2], jobs, l) != SCIP_OKAY) TraditionalScheduling(jobs, l);
+    if(l >= 1 || RunJSP(argv[2], jobs, l) != SCIP_OKAY) TraditionalScheduling(jobs, l);
     const auto score = CalculateScore(argv[2], jobs);
 
     std::cout << std::fixed << std::setprecision(8) << score << '\n';

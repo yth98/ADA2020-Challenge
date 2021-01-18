@@ -418,6 +418,7 @@ SCIP_RETCODE FormulateMIP(SCIP* scip, std::vector<SCIP_VAR*> &c, std::vector<SCI
         for(i1 = 0; i1 < jobs.size()-1; i1++) for(i2 = i1+1; i2 < jobs.size(); i2++) for(auto &J1 : jobs[i1].ops) for(auto &J2 : jobs[i2].ops) {
             SCIP_CONS *Heur;
             SCIP_Real is_pre = jobs[i1].weight * J2.duration >= jobs[i2].weight * J1.duration ? 1.0 : 0.0;
+            if(is_pre != (jobs[i1].weight >= jobs[i2].weight)) continue;
             (void) SCIPsnprintf(name, SCIP_MAXSTRLEN, "(Heur)%d-%d", J1.ij+1, J2.ij+1);
             SCIP_CALL( SCIPcreateConsBasicLinear(scip, &Heur, name, 0, NULL, NULL, is_pre, is_pre) );
             SCIP_CALL( SCIPaddCoefLinear(scip, Heur, z[J1.ij*Ops.size()+J2.ij], 1.0) );

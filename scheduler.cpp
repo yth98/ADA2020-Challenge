@@ -393,6 +393,41 @@ SCIP_RETCODE FormulateMIP(SCIP* scip, std::vector<SCIP_VAR*> &c, std::vector<SCI
         SCIP_CALL( SCIPaddCons(scip, LastH) );
         SCIP_CALL( SCIPreleaseCons(scip, &LastH) );
     }
+    if(l == 1) {
+        std::vector<uint16_t> j_order(jobs.size());
+        // Optimal Substructure
+        for(i = 0; i < jobs.size(); i++) j_order[i] = i;
+        std::sort(j_order.begin(), j_order.end(), [&](const uint16_t &a, const uint16_t &b) {
+            return jobs[a].weight * jobs[b].duration >= jobs[b].weight * jobs[a].duration;
+        });
+        for(i = 0; i < jobs.size()-1; i++) {
+            SCIP_CONS *Ones;
+            (void) SCIPsnprintf(name, SCIP_MAXSTRLEN, "(l==1)%d-%d", j_order[i]+1, j_order[i+1]+1);
+            SCIP_CALL( SCIPcreateConsBasicLinear(scip, &Ones, name, 0, NULL, NULL, 0.0, SCIPinfinity(scip)) );
+            SCIP_CALL( SCIPaddCoefLinear(scip, Ones, c[j_order[i+1]], 1.0) );
+            SCIP_CALL( SCIPaddCoefLinear(scip, Ones, c[j_order[i]], -1.0) );
+            SCIP_CALL( SCIPaddCons(scip, Ones) );
+            SCIP_CALL( SCIPreleaseCons(scip, &Ones) );
+        }
+    }
+    else if(Ops.size() >= 101) { // Heuristic for large problem
+        std::vector<uint16_t> j_order(jobs.size());
+        // Sort the jobs by weight in descending order
+        for(i = 0; i < jobs.size(); i++) j_order[i] = i;
+        std::sort(j_order.begin(), j_order.end(), [&](const uint16_t &a, const uint16_t &b) {
+            return jobs[a].weight > jobs[b].weight;
+        });
+        for(i1 = 0; i1 < jobs.size()-1; i1++) for(i2 = i1+1; i2 == i1+1; i2++)
+            if(jobs[j_order[i1]].weight >= 1.0 * jobs[j_order[i2]].weight) {
+                SCIP_CONS *Heur;
+                (void) SCIPsnprintf(name, SCIP_MAXSTRLEN, "(Heur)%d-%d", j_order[i1]+1, j_order[i2]+1);
+                SCIP_CALL( SCIPcreateConsBasicLinear(scip, &Heur, name, 0, NULL, NULL, 0.0, SCIPinfinity(scip)) );
+                SCIP_CALL( SCIPaddCoefLinear(scip, Heur, c[j_order[i2]], 1.0) );
+                SCIP_CALL( SCIPaddCoefLinear(scip, Heur, c[j_order[i1]], -1.0) );
+                SCIP_CALL( SCIPaddCons(scip, Heur) );
+                SCIP_CALL( SCIPreleaseCons(scip, &Heur) );
+            }
+    }
     SCIP_CALL( SCIPreleaseVar(scip, &Cmax) );
     for(j1 = 0; j1 < Ops.size(); j1++) for(j2 = j1+1; j2 < Ops.size(); j2++)
         SCIP_CALL( SCIPreleaseVar(scip, &z[j1*Ops.size()+j2]) );
@@ -414,11 +449,10 @@ SCIP_RETCODE RunJSP(const std::string &outfile, std::vector<Job> &jobs, const ui
     // There is a time limit of 12 hours for the public tests combined
     // The time limit for the private tests combined is 24 hours
     switch(x.size()) {
-        case   1 ...  20: tLimit =   720; break; // 0 2 3 4
+        case   1 ...  20: tLimit =   720; break; // 0 1 2 3 4
         case  21 ...  35: tLimit =  3600; break; // 7 6 5
         case  36 ... 100: tLimit =  5400; break; // 8 9
-        case 101 ... 180: tLimit =  7200; break; // 1
-        default: tLimit = 11520; // 10
+        default: tLimit = 20880; // 10
     }
     SCIP_CALL( SCIPsetRealParam(scip, "limits/time", tLimit) );
     if(x.size() <= 35) SCIP_CALL( SCIPsetIntParam(scip, "misc/usesymmetry", 0) );
@@ -475,7 +509,8 @@ void TraditionalScheduling(std::vector<Job> &jobs, const uint16_t &l) {
     // Sort the jobs by weight in descending order
     for (uint8_t i = 0; i < jobs.size(); i++) j_order[i] = i;
     std::sort(j_order.begin(), j_order.end(), [&](const uint16_t &a, const uint16_t &b) {
-        return jobs[a].weight > jobs[b].weight;
+        if(l == 1) return jobs[a].weight * jobs[b].duration >= jobs[b].weight * jobs[a].duration;
+        return jobs[a].weight >= jobs[b].weight;
     });
     for (auto &j : j_order) {
         uint32_t j_end{global_start};
@@ -504,7 +539,7 @@ int main(int argc, char **argv) {
     assert(argc == 3);
     auto [l, jobs] = ReadJobs(argv[1]);
 
-    if(RunJSP(argv[2], jobs, l) != SCIP_OKAY) TraditionalScheduling(jobs, l);
+    if(l == 1 || RunJSP(argv[2], jobs, l) != SCIP_OKAY) TraditionalScheduling(jobs, l);
     const auto score = CalculateScore(argv[2], jobs);
 
     std::cout << std::fixed << std::setprecision(8) << score << '\n';

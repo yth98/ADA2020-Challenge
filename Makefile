@@ -18,11 +18,11 @@ scheduler: scheduler.cpp src/JSP.cpp | libs/lib/libscip.so libs-or/lib/libortool
 
 out/%.out: scheduler in/%.in | libs/lib/libscip.so libs-or/lib/libortools.so
 	mkdir -p out
-	export LD_LIBRARY_PATH=libs/lib/; export LD_LIBRARY_PATH=libs-or/lib/; time ./scheduler in/$(patsubst out/%.out,%.in,$@) $@
+	export LD_LIBRARY_PATH=libs/lib/:libs-or/lib/$${LD_LIBRARY_PATH:+:$$LD_LIBRARY_PATH}; time ./scheduler in/$(patsubst out/%.out,%.in,$@) $@
 
 out-private/%.out: checker scheduler in-private/%.in | libs/lib/libscip.so libs-or/lib/libortools.so
 	mkdir -p out-private
-	export LD_LIBRARY_PATH=libs/lib/; export LD_LIBRARY_PATH=libs-or/lib/; time ./scheduler in-private/$(patsubst out-private/%.out,%.in,$@) $@
+	export LD_LIBRARY_PATH=libs/lib/:libs-or/lib/$${LD_LIBRARY_PATH:+:$$LD_LIBRARY_PATH}; time ./scheduler in-private/$(patsubst out-private/%.out,%.in,$@) $@
 	./checker --public in-private/$(patsubst out-private/%.out,%.in,$@) $@
 
 validate%: checker in/%.in out/%.out

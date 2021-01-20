@@ -1,5 +1,8 @@
 bliss
 build
+build-or
 libs
+libs-or
+or-tools
 scipoptsuite-7.0.2
 *er

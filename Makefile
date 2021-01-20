@@ -1,27 +1,35 @@
 CXX ?= g++
-CXXFLAGS += -O3 -march=native -std=c++17 -Ilibs/include/
-LDFLAGS += -Llibs/lib/ -lscip
+CXXFLAGS += -O3 -march=native -std=c++17 -Ilibs/include/ -Ilibs-or/include/
+LDFLAGS += -Llibs/lib/ -lscip -Llibs-or/lib/ -lortools
 CASES = 00 01 02 03 04 07 06 05 08 09 10
+include in-private/Makefile
 
 all: checker scheduler $(CASES:%=out/%.out) validate
 
-validate: $(CASES:%=validate%)
+validate: $(CASES:%=out/%.out) $(CASES:%=validate%)
+
+private_case: checker scheduler $(PRIVATE_CASES:%=out-private/%.out)
 
 checker: checker.cpp
-	$(CXX) $(CXXFLAGS) $< -o $@
+	$(CXX) $(CXXFLAGS) $^ -o $@
 
-scheduler: scheduler.cpp libs/lib/libscip.so
-	$(CXX) $(CXXFLAGS) $< -o $@ $(LDFLAGS)
+scheduler: scheduler.cpp src/JSP.cpp | libs/lib/libscip.so libs-or/lib/libortools.so
+	$(CXX) $(CXXFLAGS) $^ -o $@ $(LDFLAGS)
 
-out/%.out: scheduler libs/lib/libscip.so in/%.in
+out/%.out: scheduler in/%.in | libs/lib/libscip.so libs-or/lib/libortools.so
 	mkdir -p out
-	export LD_LIBRARY_PATH=libs/lib/; time ./scheduler in/$(patsubst out/%.out,%.in,$@) $@
+	export LD_LIBRARY_PATH=libs/lib/; export LD_LIBRARY_PATH=libs-or/lib/; time ./scheduler in/$(patsubst out/%.out,%.in,$@) $@
+
+out-private/%.out: checker scheduler in-private/%.in | libs/lib/libscip.so libs-or/lib/libortools.so
+	mkdir -p out-private
+	export LD_LIBRARY_PATH=libs/lib/; export LD_LIBRARY_PATH=libs-or/lib/; time ./scheduler in-private/$(patsubst out-private/%.out,%.in,$@) $@
+	./checker --public in-private/$(patsubst out-private/%.out,%.in,$@) $@
 
 validate%: checker in/%.in out/%.out
 	./checker --public in/$(patsubst validate%,%.in,$@) out/$(patsubst validate%,%.out,$@)
 
 clean:
-	rm -rf checker scheduler out
+	rm -rf checker scheduler
 
 scipoptsuite-7.0.2: scipoptsuite-7.0.2.tgz
 	if [ ! -d "scipoptsuite-7.0.2" ]; then tar xvzf scipoptsuite-7.0.2.tgz; fi
@@ -41,3 +49,13 @@ libs/lib/libscip.so: | build/bin/scip
 
 solve%: build/bin/scip out/%.out.lp
 	./build/bin/scip -c "read out/$(patsubst solve%,%,$@).out.lp optimize display solution quit"
+
+or-tools/CMakeLists.txt:
+	if [ ! -d "or-tools" ]; then git clone https://github.com/google/or-tools; fi
+
+build-or/lib/libortools.so: or-tools/CMakeLists.txt
+	mkdir -p build-or
+	cd build-or; cmake -B. -H../or-tools -DBUILD_SAMPLES=OFF -DBUILD_EXAMPLES=OFF -DBUILD_DEPS=ON -DUSE_COINOR=OFF -LH; make
+
+libs-or/lib/libortools.so: | build-or/lib/libortools.so
+	cd build-or; cmake . -DCMAKE_INSTALL_PREFIX=../libs-or/ -LH; make install

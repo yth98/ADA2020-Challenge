@@ -5,7 +5,7 @@ namespace operations_research {
 namespace sat {
 CpSolverStatus RunPS_CP(std::vector<Job> &jobs, const uint16_t &l, const long double &bound, const uint32_t &span) {
     int64 Bound;
-    uint32_t dGCD, V{0}, tLimit;
+    uint32_t dGCD, wGCD{1000000}, V{0}, tLimit;
     CpModelBuilder cp_model;
     uint16_t i, j, ij{0}, q;
     char name[32];
@@ -13,6 +13,7 @@ CpSolverStatus RunPS_CP(std::vector<Job> &jobs, const uint16_t &l, const long do
     std::vector<IntVar> c, xs, xe;
     std::vector<BoolVar> y, z;
     std::vector<IntervalVar> xinterval[l];
+    std::vector<uint32_t> w;
 
     dGCD = jobs[0].ops[0].duration;
     for(i = 0; i < jobs.size(); i++)
@@ -21,10 +22,14 @@ CpSolverStatus RunPS_CP(std::vector<Job> &jobs, const uint16_t &l, const long do
     for(i = 0; i < jobs.size(); i++)
         for(j = 0; j < jobs[i].ops.size(); j++)
             V += jobs[i].ops[j].duration / dGCD;
-    Bound = ((int64)std::round(bound*1000000.0)) / dGCD;
+    for(i = 0; i < jobs.size(); i++) {
+        w.push_back(std::round(jobs[i].weight*1000000.0));
+        wGCD = std::__gcd(wGCD, w.back());
+    }
+    Bound = ((int64)std::ceil(bound*1000000.0)) / dGCD / wGCD;
+    LOG(INFO) << "Bound = " << Bound << " Span <= " << span << "\n";
 
     const Domain time(0, std::min<uint32_t>(V, span));
-    const IntVar VI = cp_model.NewConstant(V);
     const IntVar Cmax = cp_model.NewIntVar(time).WithName("makespan");
     for(i = 0; i < jobs.size(); i++) {
         for(j = 0; j < jobs[i].ops.size(); j++) {
@@ -58,11 +63,17 @@ CpSolverStatus RunPS_CP(std::vector<Job> &jobs, const uint16_t &l, const long do
         cp_model.AddGreaterOrEqual(xs[j], xe[i]).OnlyEnforceIf(z.back());
         cp_model.AddGreaterOrEqual(xs[i], xe[j]).OnlyEnforceIf(Not(z.back()));
     }
+    for(i = j = 0; i < jobs.size(); i++, j+=jobs[i].ops.size()) {
+        if(Ops[j]->slices < l) {
+            cp_model.AddEquality(y[j], cp_model.TrueVar()); // Eliminate the symmetry
+            break;
+        }
+    }
 
     cp_model.AddMaxEquality(Cmax, c);
     LinearExpr obj;
-    obj.AddTerm(Cmax, 1000000);
-    for(i = 0; i < jobs.size(); i++) obj.AddTerm(c[i], std::round(jobs[i].weight*1000000.0));
+    obj.AddTerm(Cmax, 1000000/wGCD);
+    for(i = 0; i < jobs.size(); i++) obj.AddTerm(c[i], w[i]/wGCD);
     cp_model.AddLessOrEqual(Cmax, span);
     cp_model.AddLessOrEqual(obj, Bound);
     cp_model.Minimize(obj);

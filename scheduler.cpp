@@ -4,7 +4,7 @@
 
 int main(int argc, char **argv) {
     long double score, score2, score3;
-    uint32_t TradSpan;
+    uint32_t TradSpan, m = 0;
     SCIP_RETCODE PS_MIP = SCIP_ERROR;
     operations_research::sat::CpSolverStatus PS_CP = operations_research::sat::CpSolverStatus::UNKNOWN;
     bool PS_CP_OK = false;
@@ -15,13 +15,14 @@ int main(int argc, char **argv) {
     score2 = score = CalculateScore(jobs);
     WriteSchedule(argv[2], jobs);
 
+    for(auto j : jobs) m += j.ops.size();
     if(l >= 2) {
         if(l <= 8) PS_CP = operations_research::sat::RunPS_CP(jobs, l, score, TradSpan*1.1);
         PS_CP_OK = PS_CP == operations_research::sat::CpSolverStatus::OPTIMAL ||
                     PS_CP == operations_research::sat::CpSolverStatus::FEASIBLE;
         if(PS_CP_OK && (score2 = CalculateScore(jobs)) < score)
             WriteSchedule(argv[2], jobs);
-        if(l >= 5 && l <= 6) if(PS_CP != operations_research::sat::CpSolverStatus::OPTIMAL &&
+        if(l >= 5 && (l <= 6 || m <= 40)) if(PS_CP != operations_research::sat::CpSolverStatus::OPTIMAL &&
            (PS_MIP = RunPS(argv[2], jobs, l, score)) == SCIP_OKAY &&
            (score3 = CalculateScore(jobs)) < std::min<long double>(score, score2))
             WriteSchedule(argv[2], jobs);

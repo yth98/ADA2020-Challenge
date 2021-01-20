@@ -149,19 +149,19 @@ int timeLimit(const uint32_t &l, const uint32_t m, bool isMIP) {
     int tLimit;
     if(!isMIP) // CP
         switch(l) {
-            case 2: tLimit =   20; break;
-            case 3: tLimit =   60; break;
-            case 4: tLimit =  180; break;
+            case 2: tLimit =   60; break;
+            case 3: tLimit =  180; break;
+            case 4: tLimit =  300; break;
             case 5: tLimit =  600; break;
             case 6: tLimit =  900; break;
             case 7: tLimit = 1080; break;
-            default: tLimit = 1200;
+            default:tLimit = 1200;
         }
     else // MIP
         switch(m) {
-            case   1 ...  20: tLimit =   720; break; // 0 1 2 3 4
-            case  21 ...  39: tLimit =  3600; break; // 7 6 5
-            case  40 ...  90: tLimit =  5400; break; // 8 9
+            case   1 ...  20: tLimit =   600; break; // 0 1 2 3 4
+            case  21 ...  39: tLimit =   900; break; // 7 6 5
+            case  40 ...  90: tLimit =  1200; break; // 8 9
             default: tLimit = 1; // 10
         }
     return tLimit;

@@ -1,9 +1,9 @@
 #include "ortools/sat/cp_model.h"
-#include "JSP.h"
+#include "PS.h"
 
 namespace operations_research {
 namespace sat {
-CpSolverStatus RunJSP_CP(std::vector<Job> &jobs, const uint16_t &l, const long double &bound, const uint32_t &span) {
+CpSolverStatus RunPS_CP(std::vector<Job> &jobs, const uint16_t &l, const long double &bound, const uint32_t &span) {
     int64 Bound;
     uint32_t dGCD, V{0}, tLimit;
     CpModelBuilder cp_model;

@@ -1,6 +1,6 @@
 #include "scip/scip.h"
 #include "scip/scipdefplugins.h"
-#include "JSP.h"
+#include "PS.h"
 
 static
 SCIP_RETCODE FormulateMIP(SCIP* scip, std::vector<SCIP_VAR*> &c, std::vector<SCIP_VAR*> &x, std::vector<SCIP_VAR*> &y,
@@ -142,7 +142,7 @@ SCIP_RETCODE FormulateMIP(SCIP* scip, std::vector<SCIP_VAR*> &c, std::vector<SCI
     z.resize(Ops.size()*Ops.size());
     Deps.resize(Ops.size()*Ops.size(), false);
     std::vector<SCIP_CONS*> Precedence, DisjunctiveP, DisjunctiveN, Slice, LastC, LastMax;
-    SCIP_CALL( SCIPcreateProbBasic(scip, "JSP") );
+    SCIP_CALL( SCIPcreateProbBasic(scip, "PS") );
     SCIP_CALL( SCIPcreateVarBasic(scip, &Cmax, "cmax", 0.0, VR, 1.0, SCIP_VARTYPE_INTEGER) );
     SCIP_CALL( SCIPaddVar(scip, Cmax) );
     if(l == 1) for(i = 0; i < jobs.size(); i++) {
@@ -324,7 +324,7 @@ SCIP_RETCODE FormulateMIP(SCIP* scip, std::vector<SCIP_VAR*> &c, std::vector<SCI
     return SCIP_OKAY;
 }
 
-SCIP_RETCODE RunJSP(const std::string &outfile, std::vector<Job> &jobs, const uint16_t &l, const long double &bound) {
+SCIP_RETCODE RunPS(const std::string &outfile, std::vector<Job> &jobs, const uint16_t &l, const long double &bound) {
     SCIP* scip;
     SCIP_SOL* Sol;
     uint32_t dGCD;

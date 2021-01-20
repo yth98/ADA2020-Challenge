@@ -17,8 +17,8 @@
 #include <utility>     // for pair
 #include <vector>      // for vector, vector<>::reference, _Bit_reference
 
-#ifndef DEFINE_JSP
-#define DEFINE_JSP
+#ifndef DEFINE_PS
+#define DEFINE_PS
 
 struct Operation {
     uint32_t duration{}, start_time{};

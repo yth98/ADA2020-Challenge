@@ -20,7 +20,7 @@ private_validate: checker
 checker: checker.cpp
 	$(CXX) $(CXXFLAGS) $^ -o $@
 
-scheduler: scheduler.cpp src/JSP.cpp | libs/lib/libscip.so libs-or/lib/libortools.so
+scheduler: scheduler.cpp src/PS.cpp | libs/lib/libscip.so libs-or/lib/libortools.so
 	$(CXX) $(CXXFLAGS) $^ -o $@ $(LDFLAGS)
 
 out/%.out: scheduler in/%.in | libs/lib/libscip.so libs-or/lib/libortools.so

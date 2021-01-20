@@ -9,14 +9,15 @@
         * ~~[GLPK](https://www.gnu.org/software/glpk/ "GNU Linear Programming Kit")~~
         * ~~[lp_solve](http://lpsolve.sourceforge.net/5.5/ "MILP solver")~~
         * [Comparison of Open-Source Linear Programming Solvers](https://prod-ng.sandia.gov/techlib-noauth/access-control.cgi/2013/138847.pdf)
-        * [Parallel task scheduling problem](https://en.wikipedia.org/wiki/Parallel_task_scheduling_problem)
-        * [Mixed Integer Programming Models for Job Shop Scheduling: A Computational Analysis](https://tidel.mie.utoronto.ca/pubs/JSP_CandOR_2016.pdf)
+        * ~~[Mixed Integer Programming Models for Job Shop Scheduling: A Computational Analysis](https://tidel.mie.utoronto.ca/pubs/JSP_CandOR_2016.pdf)~~
     * Illustrate the objective function
         * The metric to be minimized
     * Illustrate the constraints: Disjunctive Model
         * Dependencies of operations
         * Capacity of each slice
+* Find suitable FPTAS
 * Related researches
+    * [Parallel task scheduling problem - Wikipedia](https://en.wikipedia.org/wiki/Parallel_task_scheduling_problem)
     * [Scheduling for Parallel Processing](https://link.springer.com/book/10.1007%2F978-1-84882-310-5)
         * parallel identical processors
         * the number of processors is a variable
@@ -40,6 +41,7 @@
     * ~~Divide & Conquer~~
     * ~~Branch pruning~~
     * Set the time limit explicitly
+        * parameters.set_max_time_in_seconds(...)
         * SCIPsetRealParam(..., "limits/time", ...)
         * The sub-optimal solution may be worse than traditional one
         * Put the most effort in Testcase 10

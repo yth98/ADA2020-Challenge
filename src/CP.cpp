@@ -58,7 +58,6 @@ CpSolverStatus RunJSP_CP(std::vector<Job> &jobs, const uint16_t &l, const long d
         cp_model.AddGreaterOrEqual(xs[j], xe[i]).OnlyEnforceIf(z.back());
         cp_model.AddGreaterOrEqual(xs[i], xe[j]).OnlyEnforceIf(Not(z.back()));
     }
-    cp_model.AddEquality(y[0], cp_model.TrueVar()); // Eliminate the symmetry
 
     cp_model.AddMaxEquality(Cmax, c);
     LinearExpr obj;

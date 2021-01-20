@@ -21,7 +21,7 @@ int main(int argc, char **argv) {
                     JSP_CP == operations_research::sat::CpSolverStatus::FEASIBLE;
         if(JSP_CP_OK && (score2 = CalculateScore(jobs)) < score)
             WriteSchedule(argv[2], jobs);
-        if(l >= 5) if(JSP_CP != operations_research::sat::CpSolverStatus::OPTIMAL &&
+        if(l >= 5 && l <= 6) if(JSP_CP != operations_research::sat::CpSolverStatus::OPTIMAL &&
            (JSP_MIP = RunJSP(argv[2], jobs, l, score)) == SCIP_OKAY &&
            (score3 = CalculateScore(jobs)) < std::min<long double>(score, score2))
             WriteSchedule(argv[2], jobs);

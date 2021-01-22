@@ -63,8 +63,8 @@ CpSolverStatus RunPS_CP(std::vector<Job> &jobs, const uint16_t &l, const long do
         cp_model.AddGreaterOrEqual(xs[j], xe[i]).OnlyEnforceIf(z.back());
         cp_model.AddGreaterOrEqual(xs[i], xe[j]).OnlyEnforceIf(Not(z.back()));
     }
-    for(i = j = 0; i < jobs.size(); i++, j+=jobs[i].ops.size()) {
-        if(Ops[j]->slices < l) {
+    for(i = j = 0; i < jobs.size(); j+=jobs[i].ops.size(), i++) {
+        if(j < Ops.size() && Ops[j]->slices < l) {
             cp_model.AddEquality(y[j], cp_model.TrueVar()); // Eliminate the symmetry
             break;
         }

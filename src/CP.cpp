@@ -41,7 +41,7 @@ CpSolverStatus RunPS_CP(std::vector<Job> &jobs, const uint16_t &l, const long do
     for(i = 0; i < j_order.size(); i++) for (j = 0; j < jobs[j_order[i]].opTopo.size(); j++)
         o_order[jobs[j_order[i]].ops[jobs[j_order[i]].opTopo[j]].ij] = m++;
 
-    Group_size = (l >= 6) ? 20 : jobs.size();
+    Group_size = (l >= 9) ? 12 : (l >= 6) ? 20 : jobs.size();
     CpSolverStatus GlobalStatus;
     for(Group_start = 0; Group_start < jobs.size(); Group_start+=Group_size) {
         std::cerr << "CP job group " << (Group_start+1) << " ~ " << (Group_start+Group_size) << "\n";
@@ -158,7 +158,7 @@ CpSolverStatus RunPS_CP(std::vector<Job> &jobs, const uint16_t &l, const long do
         }));
 
         SatParameters parameters;
-        parameters.set_num_search_workers(128);
+        parameters.set_num_search_workers(32);
         parameters.set_enumerate_all_solutions(false);
         parameters.set_max_time_in_seconds(timeLimit(l, Ops.size(), false)*(1.0)*Group_size/jobs.size());
         model.Add(NewSatParameters(parameters));

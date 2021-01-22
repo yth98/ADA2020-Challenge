@@ -5,8 +5,8 @@
 
 ## Build and Run-time Dependency
 * Google OR-Tools (`/usr/include/ortools`, `/usr/lib/libortools.so`)
-* `make scheduler` would download and build OR-Tools automatically
-* Execute `g++ -O3 -march=native -std=c++17 scheduler.cpp -o scheduler -lortools` if OR-Tools is already installed
+* `make libs-or/lib/libortools.so` would download and build OR-Tools automatically
+* `make scheduler` if OR-Tools is installed
 
 ## TODO
 * [x] Generate valid outputs
@@ -68,7 +68,7 @@
   6 |      4 |  33 |    4356 |  19501.14172 |  19501.36364 |    Opt
   7 |      4 |  28 |    3136 |  17533.5815  |  17695.212   |    Opt
   8 |      8 |  40 |   12800 |  43642.98051 |  45288.91921 | Strong
-  9 |      8 |  87 |   60552 |  93734.82354 |  68919.2094  |   Trad
+  9 |      8 |  87 |   60552 |  64573.2938  |  68919.2094  | Strong
  10 |     36 | 241 | 2090916 | 528026.72405 | 415366.00282 |   Trad
 
 ## Private

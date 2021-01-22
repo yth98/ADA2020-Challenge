@@ -4,7 +4,9 @@
 * `./scheduler 01.in 01.out`
 
 ## Build and Run-time Dependency
-* Google OR-Tools (`/usr/include/ortools`, `/usr/lib/libortools.so`)
+* GCC 7.5+
+* Google [OR-Tools](https://github.com/google/or-tools "Google OR-Tools - Google Optimization Tools")
+* `/usr/include/ortools`, `/usr/lib/libortools.so`
 * `make libs-or/lib/libortools.so` would download and build OR-Tools automatically
 * `make scheduler` if OR-Tools is installed
 
@@ -69,7 +71,7 @@
   7 |      4 |  28 |    3136 |  17533.5815  |  17695.212   |    Opt
   8 |      8 |  40 |   12800 |  43642.98051 |  45288.91921 | Strong
   9 |      8 |  87 |   60552 |  64573.2938  |  68919.2094  | Strong
- 10 |     36 | 241 | 2090916 | 528026.72405 | 415366.00282 |   Trad
+ 10 |     36 | 241 | 2090916 | 389586.49585 | 415366.00282 | Strong
 
 ## Private
   \# | l |  n | Ops |          Metric |       Remark

@@ -104,8 +104,8 @@ uint32_t TraditionalScheduling(std::vector<Job> &jobs, const uint16_t &l) {
     // Sort the jobs by weight in descending order
     for (uint8_t i = 0; i < jobs.size(); i++) j_order[i] = i;
     std::sort(j_order.begin(), j_order.end(), [&](const uint16_t &a, const uint16_t &b) {
-        if (l == 1) return jobs[a].weight * jobs[b].duration >= jobs[b].weight * jobs[a].duration;
-        return jobs[a].weight >= jobs[b].weight;
+        if (l == 1) return jobs[a].weight * jobs[b].duration > jobs[b].weight * jobs[a].duration;
+        return jobs[a].weight > jobs[b].weight;
     });
     for (uint8_t q = 0; q < l; q++) slice_order[q] = q;
     for (auto &j : j_order) {

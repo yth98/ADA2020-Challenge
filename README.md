@@ -1,21 +1,29 @@
 # ADA Final Challenge 2020 - Team31 #
 
+## Usage
+* `./scheduler 01.in 01.out`
+
+## Build and Run-time Dependency
+* Google OR-Tools (`/usr/include/ortools`, `/usr/lib/libortools.so`)
+* `make scheduler` would download and build OR-Tools automatically
+* Execute `g++ -O3 -march=native -std=c++17 scheduler.cpp -o scheduler -lortools` if OR-Tools is already installed
+
 ## TODO
-* Generate valid outputs
-* Translate testcases to MIP problem instances
-    * Solvers feasible with APIs
-        * [OR-Tools](https://developers.google.com/optimization "Google OR-Tools") - CP-Sat
-        * [SCIP](https://www.scipopt.org/ "Solving Constraint Integer Programs")
+* [x] Generate valid outputs
+* [x] Translate testcases to ~~MIP~~ CP problem instances
+    * [x] Solvers feasible with APIs
+        * [OR-Tools](https://developers.google.com/optimization "Google OR-Tools") - CP-SAT
+        * ~~[SCIP](https://www.scipopt.org/ "Solving Constraint Integer Programs")~~
         * ~~[GLPK](https://www.gnu.org/software/glpk/ "GNU Linear Programming Kit")~~
         * ~~[lp_solve](http://lpsolve.sourceforge.net/5.5/ "MILP solver")~~
         * [Comparison of Open-Source Linear Programming Solvers](https://prod-ng.sandia.gov/techlib-noauth/access-control.cgi/2013/138847.pdf)
         * ~~[Mixed Integer Programming Models for Job Shop Scheduling: A Computational Analysis](https://tidel.mie.utoronto.ca/pubs/JSP_CandOR_2016.pdf)~~
-    * Illustrate the objective function
+    * [x] Illustrate the objective function
         * The metric to be minimized
-    * Illustrate the constraints: Disjunctive Model
+    * [x] Illustrate the constraints: Disjunctive Model
         * Dependencies of operations
         * Capacity of each slice
-* Find suitable FPTAS
+* ~~Find suitable FPTAS~~
 * Related researches
     * [Parallel task scheduling problem - Wikipedia](https://en.wikipedia.org/wiki/Parallel_task_scheduling_problem)
     * [Scheduling for Parallel Processing](https://link.springer.com/book/10.1007%2F978-1-84882-310-5)
@@ -37,12 +45,14 @@
     * [Scheduling Multiprocessor Tasks to Minimize Schedule Length](https://ieeexplore.ieee.org/document/1676781) - independent, unit length
 * Reduce the execution time
     * Multithread / ~~Parallel~~ programming
-        * SCIPsolveConcurrent (may be slower on Workstations)
-    * ~~Divide & Conquer~~
+        * SatParameters::set_num_search_workers
+        * ~~SCIPsolveConcurrent (may be slower on Workstations)~~
+    * Divide & Conquer
+        * Split jobs to groups
     * ~~Branch pruning~~
     * Set the time limit explicitly
-        * parameters.set_max_time_in_seconds(...)
-        * SCIPsetRealParam(..., "limits/time", ...)
+        * SatParameters::set_max_time_in_seconds(...)
+        * ~~SCIPsetRealParam(..., "limits/time", ...)~~
         * The sub-optimal solution may be worse than traditional one
         * Put the most effort in Testcase 10
 

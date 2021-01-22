@@ -78,15 +78,7 @@ CpSolverStatus RunPS_CP(std::vector<Job> &jobs, const uint16_t &l, const long do
                 const IntVar Duration = cp_model.NewConstant(jobs[j_order[i]].ops[j].duration/dGCD);
                 ij = jobs[j_order[i]].ops[j].ij;
                 std::cerr << "Operation " << (j+1) << " (" << (ij+1) << ")\n";
-                for(q = 0; q < l; q++) {
-                    if(use_interval) {
-                        // std::snprintf(name, sizeof(name), "op_%d_%d", ij+1, q+1);
-                        // const IntervalVar op_on_slice = cp_model.NewOptionalIntervalVar(xs[ij], Duration, xe[ij], y[ij*l+q]).WithName(name);
-                        // xinterval[q].push_back(op_on_slice);
-                    }
-                }
                 std::vector<BoolVar> slice_bools(y.begin()+(ij*l), y.begin()+((ij+1)*l));
-                // for(auto c : slice_bools) std::cerr << c.DebugString() << " "; std::cerr << "[slice]\n";
                 cp_model.AddEquality(LinearExpr::BooleanSum(slice_bools), cp_model.NewConstant(jobs[j_order[i]].ops[j].slices));
                 op_ends.push_back(xe[ij]);
             }
@@ -95,48 +87,23 @@ CpSolverStatus RunPS_CP(std::vector<Job> &jobs, const uint16_t &l, const long do
                 cp_model.AddGreaterOrEqual(xs[jobs[j_order[i]].ops[j].ij], xe[jobs[j_order[i]].ops[d].ij]);
             cp_model.AddMaxEquality(c[j_order[i]], op_ends);
         }
-        if(use_interval) {
-            // const IntVar zero = cp_model.NewConstant(0);
-            // for(q = 0; q < l; q++) {
-            //     xinterval[q].push_back(cp_model.NewIntervalVar(zero, cp_model.NewConstant(slice_end[q]), cp_model.NewIntVar(time)));
-            //     for(auto val : xinterval[q]) std::cerr << val.DebugString() << " "; std::cerr << "[interval]\n";
-            //     cp_model.AddNoOverlap(xinterval[q]);
-            // }
-            // for(i = 0; i < Ops.size()-1; i++) for(j = i+1; j < Ops.size(); j++) if(Ops[i]->slices + Ops[j]->slices > l) {
-            //     z.push_back(cp_model.NewBoolVar());
-            //     cp_model.AddGreaterOrEqual(xs[j], xe[i]).OnlyEnforceIf(z.back());
-            //     cp_model.AddGreaterOrEqual(xs[i], xe[j]).OnlyEnforceIf(z.back().Not());
-            // }
-        } else {
+        for(i = 0; i < Ops.size(); i++)
+            cp_model.AddEquality(xe[i], xs[i].AddConstant(Ops[i]->duration/dGCD));
+        for(q = 0; q < l; q++) {
+            const IntVar slice_per_end = cp_model.NewConstant(slice_end[q]);
             for(i = 0; i < Ops.size(); i++)
-                cp_model.AddEquality(xe[i], xs[i].AddConstant(Ops[i]->duration/dGCD));
-            for(q = 0; q < l; q++) {
-                const IntVar slice_per_end = cp_model.NewConstant(slice_end[q]);
-                for(i = 0; i < Ops.size(); i++)
-                    cp_model.AddGreaterOrEqual(xs[i], slice_per_end).OnlyEnforceIf(y[i*l+q]);
-            }
-            for(i = 0; i < Ops.size()-1; i++) for(j = i+1; j < Ops.size(); j++) {
-                z.push_back(cp_model.NewBoolVar());
-                if(Ops[i]->slices + Ops[j]->slices > l) {
-                    cp_model.AddGreaterOrEqual(xs[j], xe[i]).OnlyEnforceIf(z.back());
-                    cp_model.AddGreaterOrEqual(xs[i], xe[j]).OnlyEnforceIf(z.back().Not());
-                } else for(q = 0; q < l; q++) {
-                    cp_model.AddGreaterOrEqual(xs[j], xe[i]).OnlyEnforceIf({y[i*l+q], y[j*l+q], z.back()});
-                    cp_model.AddGreaterOrEqual(xs[i], xe[j]).OnlyEnforceIf({y[i*l+q], y[j*l+q], z.back().Not()});
-                }
+                cp_model.AddGreaterOrEqual(xs[i], slice_per_end).OnlyEnforceIf(y[i*l+q]);
+        }
+        for(i = 0; i < Ops.size()-1; i++) for(j = i+1; j < Ops.size(); j++) {
+            z.push_back(cp_model.NewBoolVar());
+            if(Ops[i]->slices + Ops[j]->slices > l) {
+                cp_model.AddGreaterOrEqual(xs[j], xe[i]).OnlyEnforceIf(z.back());
+                cp_model.AddGreaterOrEqual(xs[i], xe[j]).OnlyEnforceIf(z.back().Not());
+            } else for(q = 0; q < l; q++) {
+                cp_model.AddGreaterOrEqual(xs[j], xe[i]).OnlyEnforceIf({y[i*l+q], y[j*l+q], z.back()});
+                cp_model.AddGreaterOrEqual(xs[i], xe[j]).OnlyEnforceIf({y[i*l+q], y[j*l+q], z.back().Not()});
             }
         }
-        // if(Group_start == 0) for(i = 0; i < Group_size; i++) {
-        //     for(j = 0; j < jobs[j_order[i]].ops.size(); j++) {
-        //         bool sym_break = false;
-        //         if(jobs[j_order[i]].ops[j].slices < l) {
-        //             cp_model.AddEquality(y[jobs[j_order[i]].ops[j].ij], cp_model.TrueVar()); // Eliminate the symmetry
-        //             sym_break = true;
-        //             break;
-        //         }
-        //         if(sym_break) break;
-        //     }
-        // }
 
         cp_model.AddMaxEquality(Cmax, c);
         LinearExpr obj;
@@ -153,8 +120,6 @@ CpSolverStatus RunPS_CP(std::vector<Job> &jobs, const uint16_t &l, const long do
         model.Add(NewFeasibleSolutionObserver([&](const CpSolverResponse& r) {
             LOG(INFO) << "Solution makespan " << SolutionIntegerValue(r, Cmax)
                     << " objective " << SolutionIntegerValue(r, obj);
-            for(auto s : xs) std::cerr << SolutionIntegerValue(r, s) << " "; std::cerr << "\n";
-            for(auto e : xe) std::cerr << SolutionIntegerValue(r, e) << " "; std::cerr << "\n";
         }));
 
         SatParameters parameters;

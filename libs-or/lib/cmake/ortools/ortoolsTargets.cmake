@@ -4,7 +4,7 @@ if("${CMAKE_MAJOR_VERSION}.${CMAKE_MINOR_VERSION}" LESS 2.5)
    message(FATAL_ERROR "CMake >= 2.6.0 required")
 endif()
 cmake_policy(PUSH)
-cmake_policy(VERSION 2.6...3.17)
+cmake_policy(VERSION 2.6)
 #----------------------------------------------------------------
 # Generated CMake target import file.
 #----------------------------------------------------------------
@@ -55,11 +55,11 @@ add_library(ortools::ortools SHARED IMPORTED)
 
 set_target_properties(ortools::ortools PROPERTIES
   COMPATIBLE_INTERFACE_STRING "ortools_MAJOR_VERSION"
-  INTERFACE_COMPILE_DEFINITIONS "OR_TOOLS_AS_DYNAMIC_LIB;USE_BOP;USE_GLOP;USE_SCIP;USE_CBC;USE_CLP"
+  INTERFACE_COMPILE_DEFINITIONS "OR_TOOLS_AS_DYNAMIC_LIB;USE_BOP;USE_GLOP;USE_SCIP"
   INTERFACE_COMPILE_FEATURES "cxx_std_17"
   INTERFACE_COMPILE_OPTIONS "-fwrapv"
   INTERFACE_INCLUDE_DIRECTORIES "${_IMPORT_PREFIX}/include;${_IMPORT_PREFIX}/include"
-  INTERFACE_LINK_LIBRARIES "dl;ZLIB::ZLIB;absl::base;absl::flags;absl::flags_commandlineflag;absl::flags_parse;absl::flags_usage;absl::cord;absl::random_random;absl::raw_hash_set;absl::hash;absl::memory;absl::meta;absl::stacktrace;absl::status;absl::statusor;absl::str_format;absl::strings;absl::synchronization;absl::any;protobuf::libprotobuf;Coin::CbcSolver;Coin::OsiCbc;Coin::ClpSolver;Coin::OsiClp;\$<\$<BOOL:ON>:libscip>;\$<\$<BOOL:OFF>:CPLEX::CPLEX>;\$<\$<BOOL:OFF>:XPRESS::XPRESS>;Threads::Threads"
+  INTERFACE_LINK_LIBRARIES "dl;ZLIB::ZLIB;absl::base;absl::flags;absl::flags_commandlineflag;absl::flags_parse;absl::flags_usage;absl::cord;absl::random_random;absl::raw_hash_set;absl::hash;absl::memory;absl::meta;absl::stacktrace;absl::status;absl::statusor;absl::str_format;absl::strings;absl::synchronization;absl::any;protobuf::libprotobuf;\$<\$<BOOL:ON>:libscip>;\$<\$<BOOL:OFF>:CPLEX::CPLEX>;\$<\$<BOOL:OFF>:XPRESS::XPRESS>;Threads::Threads"
   INTERFACE_POSITION_INDEPENDENT_CODE "ON"
   INTERFACE_ortools_MAJOR_VERSION "8"
 )
@@ -119,10 +119,10 @@ but not all the files it references.
 endforeach()
 unset(_IMPORT_CHECK_TARGETS)
 
-# Make sure the targets which have been exported in some other
+# Make sure the targets which have been exported in some other 
 # export set exist.
 unset(${CMAKE_FIND_PACKAGE_NAME}_NOT_FOUND_MESSAGE_targets)
-foreach(_target "ZLIB::ZLIB" "absl::base" "absl::flags" "absl::flags_commandlineflag" "absl::flags_parse" "absl::flags_usage" "absl::cord" "absl::random_random" "absl::raw_hash_set" "absl::hash" "absl::memory" "absl::meta" "absl::stacktrace" "absl::status" "absl::statusor" "absl::str_format" "absl::strings" "absl::synchronization" "absl::any" "protobuf::libprotobuf" "Coin::CbcSolver" "Coin::OsiCbc" "Coin::ClpSolver" "Coin::OsiClp" )
+foreach(_target "ZLIB::ZLIB" "absl::base" "absl::flags" "absl::flags_commandlineflag" "absl::flags_parse" "absl::flags_usage" "absl::cord" "absl::random_random" "absl::raw_hash_set" "absl::hash" "absl::memory" "absl::meta" "absl::stacktrace" "absl::status" "absl::statusor" "absl::str_format" "absl::strings" "absl::synchronization" "absl::any" "protobuf::libprotobuf" )
   if(NOT TARGET "${_target}" )
     set(${CMAKE_FIND_PACKAGE_NAME}_NOT_FOUND_MESSAGE_targets "${${CMAKE_FIND_PACKAGE_NAME}_NOT_FOUND_MESSAGE_targets} ${_target}")
   endif()

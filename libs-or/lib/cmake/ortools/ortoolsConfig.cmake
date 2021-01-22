@@ -41,7 +41,7 @@ if(ON)
   endif()
 endif()
 
-if(ON)
+if(OFF)
   if(NOT Clp_FOUND AND NOT TARGET Coin::ClpSolver)
     find_dependency(Clp REQUIRED ${CONFIG_FLAG})
   endif()

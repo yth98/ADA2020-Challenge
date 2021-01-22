@@ -41,10 +41,10 @@ CpSolverStatus RunPS_CP(std::vector<Job> &jobs, const uint16_t &l, const long do
     for(i = 0; i < j_order.size(); i++) for (j = 0; j < jobs[j_order[i]].opTopo.size(); j++)
         o_order[jobs[j_order[i]].ops[jobs[j_order[i]].opTopo[j]].ij] = m++;
 
-    Group_size = jobs.size();
+    Group_size = (l >= 6) ? 20 : jobs.size();
     CpSolverStatus GlobalStatus;
     for(Group_start = 0; Group_start < jobs.size(); Group_start+=Group_size) {
-        std::cerr << "CP job group " << (Group_start+1) << " ~ " << (Group_start+Group_size+1) << "\n";
+        std::cerr << "CP job group " << (Group_start+1) << " ~ " << (Group_start+Group_size) << "\n";
         CpModelBuilder cp_model;
         // Variables
         std::vector<IntVar> c, xs, xe;
@@ -70,7 +70,7 @@ CpSolverStatus RunPS_CP(std::vector<Job> &jobs, const uint16_t &l, const long do
         std::cerr << "C " << c.size() << " X " << xs.size() <<  " " << xe.size();
         std::cerr << " Y " << y.size() << "\n";
         // Constraints
-        for(i = Group_start; i < Group_start+Group_size; i++) {
+        for(i = Group_start; i < std::min<uint16_t>(Group_start+Group_size,jobs.size()); i++) {
             std::vector<IntVar> op_ends;
             std::cerr << "Job " << (j_order[i]+1) << "\n";
             // Disjunctive and Width
@@ -86,7 +86,7 @@ CpSolverStatus RunPS_CP(std::vector<Job> &jobs, const uint16_t &l, const long do
                     }
                 }
                 std::vector<BoolVar> slice_bools(y.begin()+(ij*l), y.begin()+((ij+1)*l));
-                for(auto c : slice_bools) std::cerr << c.DebugString() << " "; std::cerr << "[slice]\n";
+                // for(auto c : slice_bools) std::cerr << c.DebugString() << " "; std::cerr << "[slice]\n";
                 cp_model.AddEquality(LinearExpr::BooleanSum(slice_bools), cp_model.NewConstant(jobs[j_order[i]].ops[j].slices));
                 op_ends.push_back(xe[ij]);
             }
@@ -160,20 +160,21 @@ CpSolverStatus RunPS_CP(std::vector<Job> &jobs, const uint16_t &l, const long do
         SatParameters parameters;
         parameters.set_num_search_workers(128);
         parameters.set_enumerate_all_solutions(false);
-        parameters.set_max_time_in_seconds(timeLimit(l, Ops.size(), false));
+        parameters.set_max_time_in_seconds(timeLimit(l, Ops.size(), false)*(1.0)*Group_size/jobs.size());
         model.Add(NewSatParameters(parameters));
         const CpSolverResponse response = SolveCpModel(cp_model.Build(), &model);
         LOG(INFO) << CpSolverResponseStats(response);
         if((GlobalStatus = response.status()) == CpSolverStatus::OPTIMAL || GlobalStatus == CpSolverStatus::FEASIBLE)
-            for(i = Group_start; i < Group_start+Group_size; i++) for(j = 0; j < jobs[j_order[i]].ops.size(); j++) {
-                Operation* op = &jobs[j_order[i]].ops[j];
-                op->start_time = SolutionIntegerValue(response, xs[op->ij]) * dGCD;
-                op->in_slice.clear();
-                for(q = 0; q < l; q++) if(SolutionIntegerValue(response, y[op->ij*l+q])) {
-                    op->in_slice.push_back(q);
-                    slice_end[q] = std::max<uint32_t>(slice_end[q], SolutionIntegerValue(response, xe[op->ij]));
+            for(i = Group_start; i < std::min<uint16_t>(Group_start+Group_size,jobs.size()); i++)
+                for(j = 0; j < jobs[j_order[i]].ops.size(); j++) {
+                    Operation* op = &jobs[j_order[i]].ops[j];
+                    op->start_time = SolutionIntegerValue(response, xs[op->ij]) * dGCD;
+                    op->in_slice.clear();
+                    for(q = 0; q < l; q++) if(SolutionIntegerValue(response, y[op->ij*l+q])) {
+                        op->in_slice.push_back(q);
+                        slice_end[q] = std::max<uint32_t>(slice_end[q], SolutionIntegerValue(response, xe[op->ij]));
+                    }
                 }
-            }
         else return GlobalStatus;
     }
     return GlobalStatus;

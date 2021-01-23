@@ -4,7 +4,7 @@ if("${CMAKE_MAJOR_VERSION}.${CMAKE_MINOR_VERSION}" LESS 2.5)
    message(FATAL_ERROR "CMake >= 2.6.0 required")
 endif()
 cmake_policy(PUSH)
-cmake_policy(VERSION 2.6...3.17)
+cmake_policy(VERSION 2.6)
 #----------------------------------------------------------------
 # Generated CMake target import file.
 #----------------------------------------------------------------
@@ -134,7 +134,7 @@ add_library(absl::base STATIC IMPORTED)
 
 set_target_properties(absl::base PROPERTIES
   INTERFACE_INCLUDE_DIRECTORIES "${_IMPORT_PREFIX}/include"
-  INTERFACE_LINK_LIBRARIES "absl::atomic_hook;absl::base_internal;absl::config;absl::core_headers;absl::dynamic_annotations;absl::log_severity;absl::raw_logging_internal;absl::spinlock_wait;absl::type_traits;Threads::Threads;\$<LINK_ONLY:\$<\$<BOOL:/usr/lib/librt.so>:-lrt>>;\$<LINK_ONLY:\$<\$<BOOL:>:\"advapi32\">>"
+  INTERFACE_LINK_LIBRARIES "absl::atomic_hook;absl::base_internal;absl::config;absl::core_headers;absl::dynamic_annotations;absl::log_severity;absl::raw_logging_internal;absl::spinlock_wait;absl::type_traits;Threads::Threads;\$<LINK_ONLY:\$<\$<BOOL:/usr/lib/x86_64-linux-gnu/librt.so>:-lrt>>;\$<LINK_ONLY:\$<\$<BOOL:>:\"advapi32\">>"
 )
 
 # Create imported target absl::throw_delegate

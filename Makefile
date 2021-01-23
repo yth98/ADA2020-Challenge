@@ -1,6 +1,5 @@
 CXX ?= g++
-CXXFLAGS += -O3 -march=native -std=c++17 -Ilibs/include/ -Ilibs-or/include/
-LDFLAGS += -Llibs/lib/ -lscip -Llibs-or/lib/ -lortools
+CXXFLAGS += -O3 -march=native -std=c++17
 CASES = 00 01 02 03 04 07 06 05 08 09 10
 include in-private/Makefile
 
@@ -9,7 +8,8 @@ include in-private/Makefile
 
 all: checker scheduler $(CASES:%=out/%.out) validate
 
-validate: $(CASES:%=out/%.out) $(CASES:%=validate%)
+validate: checker
+	@$(foreach t, $(CASES), if [ -f "out/$(t).out" ]; then echo $(t); ./checker in/$(t).in out/$(t).out; fi;)
 
 private_case: checker scheduler $(PRIVATE_CASES:%=out-private/%.out)
 
@@ -20,42 +20,21 @@ private_validate: checker
 checker: checker.cpp
 	$(CXX) $(CXXFLAGS) $^ -o $@
 
-scheduler: scheduler.cpp src/PS.cpp | libs/lib/libscip.so libs-or/lib/libortools.so
-	$(CXX) $(CXXFLAGS) $^ -o $@ $(LDFLAGS)
+scheduler: scheduler.cpp src/PS.cpp
+	# make libs-or/lib/libortools.so
+	$(CXX) $(CXXFLAGS) -Ilibs-or/include/ $^ -o $@ -Llibs-or/lib/ -lortools
 
-out/%.out: scheduler in/%.in | libs/lib/libscip.so libs-or/lib/libortools.so
+out/%.out: scheduler in/%.in
 	mkdir -p out
 	export LD_LIBRARY_PATH=libs/lib/:libs-or/lib/$${LD_LIBRARY_PATH:+:$$LD_LIBRARY_PATH}; time ./scheduler in/$(patsubst out/%.out,%.in,$@) $@
 
-out-private/%.out: checker scheduler in-private/%.in | libs/lib/libscip.so libs-or/lib/libortools.so
+out-private/%.out: checker scheduler in-private/%.in
 	mkdir -p out-private
 	export LD_LIBRARY_PATH=libs/lib/:libs-or/lib/$${LD_LIBRARY_PATH:+:$$LD_LIBRARY_PATH}; time ./scheduler in-private/$(patsubst out-private/%.out,%.in,$@) $@
 	./checker --public in-private/$(patsubst out-private/%.out,%.in,$@) $@
 
-validate%: checker in/%.in out/%.out
-	./checker --public in/$(patsubst validate%,%.in,$@) out/$(patsubst validate%,%.out,$@)
-
 clean:
 	rm -rf checker scheduler
-
-scipoptsuite-7.0.2: scipoptsuite-7.0.2.tgz
-	@if [ ! -d "scipoptsuite-7.0.2" ]; then tar xvzf scipoptsuite-7.0.2.tgz; fi
-
-bliss/libbliss.a: bliss-0.73.zip
-	@if [ ! -d "bliss" ]; then unzip bliss-0.73.zip; mv bliss-0.73 bliss; fi
-	cd bliss; make
-
-build/bin/scip: | scipoptsuite-7.0.2 bliss/libbliss.a
-	mkdir -p build
-	@if [ ! -d "build/bliss" ]; then ln -s ../bliss build/bliss; fi
-	cd build; cmake -B. -H../scipoptsuite-7.0.2 -DBLISS_DIR=../bliss -DGMP=OFF -DREADLINE=OFF -DSYM=bliss -DTPI=tny -DZIMPL=OFF -DZLIB=OFF -LH
-	cd build; make
-
-libs/lib/libscip.so: | build/bin/scip
-	cd build; cmake . -DCMAKE_INSTALL_PREFIX=../libs/ -LH; make install
-
-solve%: build/bin/scip out/%.out.lp
-	./build/bin/scip -c "read out/$(patsubst solve%,%,$@).out.lp optimize display solution quit"
 
 or-tools/CMakeLists.txt:
 	@if [ ! -d "or-tools" ]; then git clone https://github.com/google/or-tools; fi
